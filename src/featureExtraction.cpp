@@ -37,13 +37,13 @@ public:
     int *cloudNeighborPicked;
     int *cloudLabel;
 
-    FeatureExtraction()
+    FeatureExtraction(string ns)
     {
-        subLaserCloudInfo = nh.subscribe<lio_sam::cloud_info>("lio_sam/deskew/cloud_info", 1, &FeatureExtraction::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
+        subLaserCloudInfo = nh.subscribe<lio_sam::cloud_info>(ns+"/lio_sam/deskew/cloud_info", 1, &FeatureExtraction::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
 
-        pubLaserCloudInfo = nh.advertise<lio_sam::cloud_info> ("lio_sam/feature/cloud_info", 1);
-        pubCornerPoints = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/feature/cloud_corner", 1);
-        pubSurfacePoints = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/feature/cloud_surface", 1);
+        pubLaserCloudInfo = nh.advertise<lio_sam::cloud_info> (ns+"/lio_sam/feature/cloud_info", 1);
+        pubCornerPoints = nh.advertise<sensor_msgs::PointCloud2>(ns+"/lio_sam/feature/cloud_corner", 1);
+        pubSurfacePoints = nh.advertise<sensor_msgs::PointCloud2>(ns+"/lio_sam/feature/cloud_surface", 1);
         
         initializationValue();
     }
@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "lio_sam");
 
-    FeatureExtraction FE;
+    FeatureExtraction FE(argv[1]);
 
     ROS_INFO("\033[1;32m----> Feature Extraction Started.\033[0m");
    

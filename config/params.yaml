@@ -11,10 +11,10 @@ lio_sam:
   # gpsTopic: "odometry/filtered"
 
   # Frames
-  lidarFrame: "base_link"
-  baselinkFrame: "base_link"
-  odometryFrame: "odom"
-  mapFrame: "map"
+  lidarFrame: "$(arg agent)/lio_sam/base_link"
+  baselinkFrame: "$(arg agent)/lio_sam/base_link"
+  odometryFrame: "$(arg agent)/lio_sam/odom"
+  mapFrame: "$(arg agent)/lio_sam/map"
 
   # GPS Settings
   useImuHeadingInitialization: true           # if using GPS data, set to "true"
