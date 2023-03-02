@@ -50,14 +50,14 @@ Visualization Manager:
           Length: 2
           Name: map
           Radius: 0.5
-          Reference Frame: tars/lio_sam/map
+          Reference Frame: tars/map
           Value: true
         - Class: rviz/Axes
           Enabled: true
           Length: 1
           Name: base_link
           Radius: 0.30000001192092896
-          Reference Frame: tars/lio_sam/base_link
+          Reference Frame: tars/base_link
           Value: true
       Enabled: true
       Name: links
@@ -477,7 +477,7 @@ Visualization Manager:
   Global Options:
     Background Color: 0; 0; 0
     Default Light: true
-    Fixed Frame: tars/lio_sam/map
+    Fixed Frame: tars/map
     Frame Rate: 30
   Name: root
   Tools:
@@ -505,7 +505,7 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.009999999776482582
       Pitch: 1.1253981590270996
-      Target Frame: tars/lio_sam/base_link
+      Target Frame: tars/base_link
       Value: Orbit (rviz)
       Yaw: 3.3316705226898193
     Saved: ~
