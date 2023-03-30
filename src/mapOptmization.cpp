@@ -1699,9 +1699,19 @@ public:
                     factors.informationMatrix.push_back(curJointInformationMatrix(i,j));
                 }
             }
+
+            // Add covariance matrix to ROS message
+            for (int i = 0; i < curJointCovarianceMatrix.rows(); i++) {
+                for (int j = 0; j < curJointCovarianceMatrix.cols(); j++) {
+                    factors.covarianceMatrix.push_back(curJointCovarianceMatrix(i,j));
+                }
+            }
             
             // Add dimension of information matrix to ROS message
             factors.informationMatrixDim = curJointInformationMatrix.rows();
+
+            // Add dimension of covariance matrix to ROS message
+            factors.covarianceMatrixDim = curJointCovarianceMatrix.rows();
 
             // Add means to ROS message
             for (int i = 0; i < cur_keys.size(); i++) {
