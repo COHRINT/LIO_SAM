@@ -32,6 +32,8 @@ add_message_files(
   FILES
   cloud_info.msg
   factors.msg
+  ChannelFilter.msg
+  SLAMRequest.msg
 )
 
 add_service_files(

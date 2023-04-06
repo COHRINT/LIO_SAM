@@ -4,7 +4,9 @@
 #include "lio_sam/cloud_info.h"
 #include "lio_sam/save_map.h"
 
-#include "lio_sam/factors.h"
+#include "lio_sam/factors.h" // Deprecated
+#include "lio_sam/ChannelFilter.h"
+#include "lio_sam/SLAMRequest.h"
 
 #include <gtsam/geometry/Rot3.h>
 #include <gtsam/geometry/Pose3.h>
@@ -80,11 +82,16 @@ public:
 
     ros::Publisher pubSLAMInfo;
 
-    ros::Publisher pubFactors;
+    // ros::Publisher pubFactors; // Deprecated
+    ros::Publisher pubCF;
+    ros::Publisher pubBoss;
 
     ros::Subscriber subCloud;
     ros::Subscriber subGPS;
     ros::Subscriber subLoop;
+
+    ros::Subscriber subCFRequest
+    ros::Subscriber subBoss;
 
     ros::ServiceServer srvSaveMap;
 
@@ -100,7 +107,76 @@ public:
     pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D;
     pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
     pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
+    void addTestFactor() {
+        // std::cout << "\nCheckpoint 1\n";
+        // if no factors, don't proceed
+        if (testQueue.empty()) {
+            return;
+        }
 
+        if (cloudKeyPoses3D->points.empty()) { // if system hasn't started yet, don't proceed
+            return;
+        } else { // if system too close to starting position, don't proceed
+            if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0) {
+                return;
+            }
+        }
+
+        // variable to store last factor that was added
+        static PointType lastFactor;
+
+        while (!testQueue.empty()) {
+            // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
+            if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
+                // remove factor from queue
+                testQueue.pop_front();
+            } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
+                // don't add factor yet
+                break;
+            } else {
+                // std::cout << "\nCheckpoint 2\n";
+
+                // pull factor from queue
+                nav_msgs::Odometry thisFactor = testQueue.front();
+                testQueue.pop_front();
+
+                // extract measurements
+                float x = thisFactor.pose.pose.position.x;
+                float y = thisFactor.pose.pose.position.y;
+                float z = thisFactor.pose.pose.position.z;
+
+                // extract covariance
+                Eigen::MatrixXd cov_matrix;
+                cov_matrix(0,0) = thisFactor.pose.covariance[0];
+                cov_matrix(0,1) = thisFactor.pose.covariance[1];
+                cov_matrix(0,2) = thisFactor.pose.covariance[2];
+                cov_matrix(1,0) = thisFactor.pose.covariance[6];
+                cov_matrix(1,1) = thisFactor.pose.covariance[7];
+                cov_matrix(1,2) = thisFactor.pose.covariance[8];
+                cov_matrix(2,0) = thisFactor.pose.covariance[12];
+                cov_matrix(2,1) = thisFactor.pose.covariance[13];
+                cov_matrix(2,2) = thisFactor.pose.covariance[14];
+                noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
+
+                // variable to store factor that is being added
+                PointType curFactor;
+                curFactor.x = x;
+                curFactor.y = y;
+                curFactor.z = z;
+
+                // test whether to store current factor as previous factor for next iteration
+                if (pointDistance(curFactor, lastFactor) < 5.0) {
+                    continue;
+                } else {
+                    lastFactor = curFactor;
+                }
+
+                // add factor to graph
+                gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
+                gtSAMgraph.add(test_factor);
+            }
+        }
+    }
     pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner feature set from odoOptimization
     pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf feature set from odoOptimization
     pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner feature set from odoOptimization
@@ -115,6 +191,9 @@ public:
     std::vector<PointType> laserCloudOriSurfVec; // surf point holder for parallel computation
     std::vector<PointType> coeffSelSurfVec;
     std::vector<bool> laserCloudOriSurfFlag;
+
+    std::vector<long unsigned int> key_idx; // stores time steps requested by tracking
+
 
     map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
     pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
@@ -148,6 +227,8 @@ public:
     int laserCloudSurfFromMapDSNum = 0;
     int laserCloudCornerLastDSNum = 0;
     int laserCloudSurfLastDSNum = 0;
+
+    int timeStep = 0;
 
     bool aLoopIsClosed = false;
     map<int, int> loopIndexContainer; // from new to old
@@ -193,7 +274,11 @@ public:
 
         pubSLAMInfo           = nh.advertise<lio_sam::cloud_info>(ns+"/lio_sam/mapping/slam_info", 1);
 
-        pubFactors            = nh.advertise<lio_sam::factors>(ns+"/lio_sam/factors", 1);
+        // pubFactors            = nh.advertise<lio_sam::factors>(ns+"/lio_sam/factors", 1); // Deprecated
+        pubCF                 = nh.advertise<lio_sam::ChannelFilter>("SLAM_CF_chatter_"+ns, 1);
+        subCFRequest          = nh.subscribe<lio_sam::SLAMRequest>("SLAM_chatter_"+ns, 1, @mapOptimization::SLAMRequestHandler, this, ros::TransportHints().tcpNoDelay());
+
+        subBoss               = nh.subscribe<std_msgs::String>("boss", 1, @mapOptimization::bossHandler, this, ros::TransportHints().tcpNoDelay());
 
         downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
         downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
@@ -246,7 +331,15 @@ public:
         matP = cv::Mat(6, 6, CV_32F, cv::Scalar::all(0));
     }
 
-    void laserCloudInfoHandler(const lio_sam::cloud_infoConstPtr& msgIn)
+    void SLAMRequestHandler(const lio_sam::SLAMRequest::ConstPtr& msgIn)
+    {
+        // Extract requested time steps from ROS message
+        key_idx = msgIn->timeSteps;
+    }
+
+    void bossHandler(const std_msgs::String::ConstPtr& msgIn) {};
+
+    void laserCloudInfoHandler(const lio_sam::cloud_info::ConstPtr& msgIn)
     {
         // extract time stamp
         timeLaserInfoStamp = msgIn->header.stamp;
@@ -279,6 +372,15 @@ public:
             publishOdometry();
 
             publishFrames();
+
+            // For all time steps other than 0th, wait for go ahead from boss before continuing 
+            if (timeStep > 0) {
+                boost::shared_ptr<std_msgs::String> sharedBossPtr;
+                sharedBossPtr = ros::topic::waitForMessage<std_msgs::String>("boss");
+            }
+
+            // Increment time step tracker
+            timeStep = timeStep + 1
         }
     }
 
@@ -1486,77 +1588,6 @@ public:
         }
     }
 
-    void addTestFactor() {
-        // std::cout << "\nCheckpoint 1\n";
-        // if no factors, don't proceed
-        if (testQueue.empty()) {
-            return;
-        }
-
-        if (cloudKeyPoses3D->points.empty()) { // if system hasn't started yet, don't proceed
-            return;
-        } else { // if system too close to starting position, don't proceed
-            if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0) {
-                return;
-            }
-        }
-
-        // variable to store last factor that was added
-        static PointType lastFactor;
-
-        while (!testQueue.empty()) {
-            // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
-            if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
-                // remove factor from queue
-                testQueue.pop_front();
-            } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
-                // don't add factor yet
-                break;
-            } else {
-                // std::cout << "\nCheckpoint 2\n";
-
-                // pull factor from queue
-                nav_msgs::Odometry thisFactor = testQueue.front();
-                testQueue.pop_front();
-
-                // extract measurements
-                float x = thisFactor.pose.pose.position.x;
-                float y = thisFactor.pose.pose.position.y;
-                float z = thisFactor.pose.pose.position.z;
-
-                // extract covariance
-                Eigen::MatrixXd cov_matrix;
-                cov_matrix(0,0) = thisFactor.pose.covariance[0];
-                cov_matrix(0,1) = thisFactor.pose.covariance[1];
-                cov_matrix(0,2) = thisFactor.pose.covariance[2];
-                cov_matrix(1,0) = thisFactor.pose.covariance[6];
-                cov_matrix(1,1) = thisFactor.pose.covariance[7];
-                cov_matrix(1,2) = thisFactor.pose.covariance[8];
-                cov_matrix(2,0) = thisFactor.pose.covariance[12];
-                cov_matrix(2,1) = thisFactor.pose.covariance[13];
-                cov_matrix(2,2) = thisFactor.pose.covariance[14];
-                noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
-
-                // variable to store factor that is being added
-                PointType curFactor;
-                curFactor.x = x;
-                curFactor.y = y;
-                curFactor.z = z;
-
-                // test whether to store current factor as previous factor for next iteration
-                if (pointDistance(curFactor, lastFactor) < 5.0) {
-                    continue;
-                } else {
-                    lastFactor = curFactor;
-                }
-
-                // add factor to graph
-                gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
-                gtSAMgraph.add(test_factor);
-            }
-        }
-    }
-
     void addLoopFactor()
     {
         if (loopIndexQueue.empty())
@@ -1584,9 +1615,6 @@ public:
 
         // odom factor
         addOdomFactor();
-
-        // test factor
-        // addTestFactor();
 
         // gps factor
         addGPSFactor();
@@ -1622,134 +1650,120 @@ public:
         latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);
 
         // define which factors to save
-        std::vector<long unsigned int> key_idx;
-        key_idx.push_back(1);
-        key_idx.push_back(4);
-        key_idx.push_back(7);
-        key_idx.push_back(10);
+        // std::vector<long unsigned int> key_idx;
+        // key_idx.push_back(1);
+        // key_idx.push_back(4);
+        // key_idx.push_back(7);
+        // key_idx.push_back(10);
 
-        // extract vector of keys
-        KeyVector cur_keys = isamCurrentEstimate.keys();
-        int num_keys = cur_keys.size();
-        cur_keys.erase(cur_keys.begin(),cur_keys.end());
+        // Wait for SLAM Request from tracking algorithm before proceeding
+        boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
+        sharedPtr = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns)
 
-        // Only save specified keys
-        for (int i = 0; i < num_keys; i++) {
-            for (int j = 0; j < key_idx.size(); j++) {
-                if (i == key_idx.at(j)) {
-                    cur_keys.push_back(i);
-                    break;
-                }
-            }
-        }
+        if !key_idx.empty() { // Only send factors if data was requested by tracking algorithm
+            // Extract vector of keys and "reset" it to be empty
+            KeyVector cur_keys = isamCurrentEstimate.keys();
+            int num_keys = cur_keys.size();
+            cur_keys.erase(cur_keys.begin(),cur_keys.end());
 
-        if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
-            // create instance of marginals class
-            gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
-
-            cout << "****************************************************" << endl;
-            cout << "Keys: ";
-            for (int i =0; i < cur_keys.size(); i++) {
-                cout << cur_keys.at(i) << " ";
-            }
-            cout << endl;
-            // curMarginal.print();
-
-            // compute joint marginal covariance
-            gtsam::JointMarginal curJointMarginal = curMarginal.jointMarginalCovariance(cur_keys);
-            // curJointMarginal.print();
-
-            // generate joint covariance matrix
-            gtsam::Matrix curJointCovarianceMatrix = curJointMarginal.fullMatrix();
-            // cout << "Joint Covariance Matrix: " << endl;
-            // print(curJointCovarianceMatrix);
-
-            // // compute joint marginal information
-            gtsam::JointMarginal curJointInformation = curMarginal.jointMarginalInformation(cur_keys);
-            // // curJointMarginal.print();
-
-            // // generate joint covariance matrix
-            gtsam::Matrix curJointInformationMatrix = curJointInformation.fullMatrix();
-            cout << "Joint Information Matrix: " << endl;
-            print(curJointInformationMatrix);
-
-            // compute mean
-            cout << "****************************************************" << endl;
-            cout << "Means: " << endl;
-            // cout << "calculateEstimate:" << endl;
-            for (int i = 0; i < cur_keys.size(); i++) {
-                Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
-                cout << cur_keys.at(i) << ": ";
-                cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
-                cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
-            }
-            cout << endl;
-
-            // Initialize ROS message
-            lio_sam::factors factors;
-
-            // Add current keys to ROS message
-            for (int i = 0; i < cur_keys.size(); i++) {
-                factors.keys.push_back(cur_keys.at(i));
-            }
-
-            // Add information matrix to ROS message
-            for (int i = 0; i < curJointInformationMatrix.rows(); i++) {
-                for (int j = 0; j < curJointInformationMatrix.cols(); j++) {
-                    factors.informationMatrix.push_back(curJointInformationMatrix(i,j));
+            // Only save specified keys
+            for (int i = 0; i < num_keys; i++) {
+                for (int j = 0; j < key_idx.size(); j++) {
+                    if (i == key_idx.at(j)) {
+                        cur_keys.push_back(i);
+                        break;
+                    }
                 }
             }
 
-            // Add covariance matrix to ROS message
-            for (int i = 0; i < curJointCovarianceMatrix.rows(); i++) {
-                for (int j = 0; j < curJointCovarianceMatrix.cols(); j++) {
-                    factors.covarianceMatrix.push_back(curJointCovarianceMatrix(i,j));
+            if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
+                // create instance of marginals class
+                gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
+
+                cout << "****************************************************" << endl;
+                cout << "Tracking Algorithm Requested Factor for Time Steps: ";
+                for (int i =0; i < cur_keys.size(); i++) {
+                    cout << cur_keys.at(i) << " ";
                 }
+                cout << endl;
+                // curMarginal.print();
+
+                // compute joint marginal covariance
+                gtsam::JointMarginal curJointMarginal = curMarginal.jointMarginalCovariance(cur_keys);
+                // curJointMarginal.print();
+
+                // generate joint covariance matrix
+                // gtsam::Matrix curJointCovarianceMatrix = curJointMarginal.fullMatrix();
+                // cout << "Joint Covariance Matrix: " << endl;
+                // print(curJointCovarianceMatrix);
+
+                // // compute joint marginal information
+                gtsam::JointMarginal curJointInformation = curMarginal.jointMarginalInformation(cur_keys);
+                // // curJointMarginal.print();
+
+                // generate joint information matrix
+                gtsam::Matrix curJointInformationMatrix = curJointInformation.fullMatrix();
+                // cout << "Joint Information Matrix: " << endl;
+                // print(curJointInformationMatrix);
+
+                // compute mean
+                // cout << "****************************************************" << endl;
+                // cout << "Means: " << endl;
+                // cout << "calculateEstimate:" << endl;
+                // for (int i = 0; i < cur_keys.size(); i++) {
+                //     Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                //     cout << cur_keys.at(i) << ": ";
+                //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
+                //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
+                // }
+                // cout << endl;
+
+                // Initialize CF message
+                // lio_sam::factors factors; // Deprecated
+                lio_sam::ChannelFilter CF;
+
+                // Add current keys to ROS message
+                // for (int i = 0; i < cur_keys.size(); i++) {
+                //     factors.keys.push_back(cur_keys.at(i));
+                // }
+
+                // Add information matrix to CF message
+                for (int i = 0; i < curJointInformationMatrix.rows(); i++) {
+                    for (int j = 0; j < curJointInformationMatrix.cols(); j++) {
+                        CF.infMat.push_back(curJointInformationMatrix(i,j));
+                    }
+                }
+
+                // Add covariance matrix to ROS message
+                // for (int i = 0; i < curJointCovarianceMatrix.rows(); i++) {
+                //     for (int j = 0; j < curJointCovarianceMatrix.cols(); j++) {
+                //         factors.covarianceMatrix.push_back(curJointCovarianceMatrix(i,j));
+                //     }
+                // }
+                
+                // Add dimension of information matrix to CF message
+                CF.matrixDim = curJointInformationMatrix.rows();
+
+                // Add dimension of covariance matrix to ROS message
+                // factors.covarianceMatrixDim = curJointCovarianceMatrix.rows();
+
+                // Add means to CF message
+                for (int i = 0; i < cur_keys.size(); i++) {
+                    Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                    CF.infVec.push_back(curEstimate.rotation().roll());
+                    CF.infVec.mean.push_back(curEstimate.rotation().pitch());
+                    CF.infVec.mean.push_back(curEstimate.rotation().yaw());
+                    CF.infVec.mean.push_back(curEstimate.translation().x());
+                    CF.infVec.mean.push_back(curEstimate.translation().y());
+                    CF.infVec.mean.push_back(curEstimate.translation().z());
+                }
+
+                // Add the number of means to ROS message
+                // factors.numMeans = cur_keys.size();
+
+                // Publish CF message
+                pubCF.publish(CF);
             }
-            
-            // Add dimension of information matrix to ROS message
-            factors.informationMatrixDim = curJointInformationMatrix.rows();
-
-            // Add dimension of covariance matrix to ROS message
-            factors.covarianceMatrixDim = curJointCovarianceMatrix.rows();
-
-            // Add means to ROS message
-            for (int i = 0; i < cur_keys.size(); i++) {
-                Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
-                factors.mean.push_back(curEstimate.rotation().roll());
-                factors.mean.push_back(curEstimate.rotation().pitch());
-                factors.mean.push_back(curEstimate.rotation().yaw());
-                factors.mean.push_back(curEstimate.translation().x());
-                factors.mean.push_back(curEstimate.translation().y());
-                factors.mean.push_back(curEstimate.translation().z());
-            }
-
-            // Add the number of means to ROS message
-            factors.numMeans = cur_keys.size();
-
-            // Publish ROS message
-            pubFactors.publish(factors);
-
-            // cout << "calculateBestEstimate:" << endl;
-            // Values testEstimate = isam->calculateBestEstimate();
-            // for (int i = 0; i < testEstimate.size(); i++) {
-            //     Pose3 curEstimate = testEstimate.at<Pose3>(i);
-            //     cout << i << ": ";
-            //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
-            //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
-            // }
-            // cout << endl;
-
-            // cout << "updateCholesky:" << endl;
-            // gtsam::NonlinearFactorGraph curFactorGraph = isam->getFactorsUnsafe();
-            // testEstimate = curFactorGraph.updateCholesky(isamCurrentEstimate, boost::none);
-            // for (int i = 0; i < testEstimate.size(); i++) {
-            //     Pose3 curEstimate = testEstimate.at<Pose3>(i);
-            //     cout << i << ": ";
-            //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
-            //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
-            // }
-            // cout << endl;
         }
 
         // cout << "****************************************************" << endl;
