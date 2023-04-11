@@ -195,7 +195,7 @@ public:
     std::vector<PointType> coeffSelSurfVec;
     std::vector<bool> laserCloudOriSurfFlag;
 
-    std::vector<short int> key_idx; // stores time steps requested by tracking
+    std::vector<short int> key_idx{-1}; // stores time steps requested by tracking
 
 
     map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
@@ -368,7 +368,7 @@ public:
 
             scan2MapOptimization();
 
-            saveKeyFramesAndFactor();
+            saveKeyFramesAndFactor(timeStep);
 
             correctPoses();
 
@@ -1611,10 +1611,16 @@ public:
         aLoopIsClosed = true;
     }
 
-    void saveKeyFramesAndFactor()
+    void saveKeyFramesAndFactor(int timeStep)
     {
-        if (saveFrame() == false)
-            return;
+        // Wait for SLAM Request from tracking algorithm before proceeding UNLESS it's time step 0
+        // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
+        ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
+
+        if (key_idx.at(0) == -1) {
+            if (saveFrame() == false)
+                return;
+        }
 
         // odom factor
         addOdomFactor();
@@ -1659,11 +1665,7 @@ public:
         // key_idx.push_back(7);
         // key_idx.push_back(10);
 
-        // Wait for SLAM Request from tracking algorithm before proceeding
-        // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
-        ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
-
-        if (!key_idx.empty()) { // Only send factors if data was requested by tracking algorithm
+        if (key_idx.at(0) != -1) { // Only send factors if data was requested by tracking algorithm
             // Extract vector of keys and "reset" it to be empty
             KeyVector cur_keys = isamCurrentEstimate.keys();
             int num_keys = cur_keys.size();
