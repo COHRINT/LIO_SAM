@@ -1,4 +1,8 @@
 #include <vector>
+#include <string>
+
+#include "ros/ros.h"
+#include "std_msgs/String.h"
 
 #include "utility.h"
 #include "lio_sam/cloud_info.h"
@@ -84,13 +88,12 @@ public:
 
     // ros::Publisher pubFactors; // Deprecated
     ros::Publisher pubCF;
-    ros::Publisher pubBoss;
 
     ros::Subscriber subCloud;
     ros::Subscriber subGPS;
     ros::Subscriber subLoop;
 
-    ros::Subscriber subCFRequest
+    ros::Subscriber subCFRequest;
     ros::Subscriber subBoss;
 
     ros::ServiceServer srvSaveMap;
@@ -192,7 +195,7 @@ public:
     std::vector<PointType> coeffSelSurfVec;
     std::vector<bool> laserCloudOriSurfFlag;
 
-    std::vector<long unsigned int> key_idx; // stores time steps requested by tracking
+    std::vector<short int> key_idx; // stores time steps requested by tracking
 
 
     map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
@@ -276,9 +279,9 @@ public:
 
         // pubFactors            = nh.advertise<lio_sam::factors>(ns+"/lio_sam/factors", 1); // Deprecated
         pubCF                 = nh.advertise<lio_sam::ChannelFilter>("SLAM_CF_chatter_"+ns, 1);
-        subCFRequest          = nh.subscribe<lio_sam::SLAMRequest>("SLAM_chatter_"+ns, 1, @mapOptimization::SLAMRequestHandler, this, ros::TransportHints().tcpNoDelay());
+        subCFRequest          = nh.subscribe<lio_sam::SLAMRequest>("SLAM_chatter_"+ns, 1, &mapOptimization::SLAMRequestHandler, this, ros::TransportHints().tcpNoDelay());
 
-        subBoss               = nh.subscribe<std_msgs::String>("boss", 1, @mapOptimization::bossHandler, this, ros::TransportHints().tcpNoDelay());
+        subBoss               = nh.subscribe<std_msgs::String>("boss", 1, &mapOptimization::bossHandler, this, ros::TransportHints().tcpNoDelay());
 
         downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
         downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
@@ -375,12 +378,12 @@ public:
 
             // For all time steps other than 0th, wait for go ahead from boss before continuing 
             if (timeStep > 0) {
-                boost::shared_ptr<std_msgs::String> sharedBossPtr;
-                sharedBossPtr = ros::topic::waitForMessage<std_msgs::String>("boss");
+                // boost::shared_ptr<std_msgs::String> sharedBossPtr;
+                ros::topic::waitForMessage<std_msgs::String>("boss");
             }
 
             // Increment time step tracker
-            timeStep = timeStep + 1
+            timeStep = timeStep + 1;
         }
     }
 
@@ -1657,10 +1660,10 @@ public:
         // key_idx.push_back(10);
 
         // Wait for SLAM Request from tracking algorithm before proceeding
-        boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
-        sharedPtr = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns)
+        // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
+        ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
 
-        if !key_idx.empty() { // Only send factors if data was requested by tracking algorithm
+        if (!key_idx.empty()) { // Only send factors if data was requested by tracking algorithm
             // Extract vector of keys and "reset" it to be empty
             KeyVector cur_keys = isamCurrentEstimate.keys();
             int num_keys = cur_keys.size();
@@ -1751,11 +1754,11 @@ public:
                 for (int i = 0; i < cur_keys.size(); i++) {
                     Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
                     CF.infVec.push_back(curEstimate.rotation().roll());
-                    CF.infVec.mean.push_back(curEstimate.rotation().pitch());
-                    CF.infVec.mean.push_back(curEstimate.rotation().yaw());
-                    CF.infVec.mean.push_back(curEstimate.translation().x());
-                    CF.infVec.mean.push_back(curEstimate.translation().y());
-                    CF.infVec.mean.push_back(curEstimate.translation().z());
+                    CF.infVec.push_back(curEstimate.rotation().pitch());
+                    CF.infVec.push_back(curEstimate.rotation().yaw());
+                    CF.infVec.push_back(curEstimate.translation().x());
+                    CF.infVec.push_back(curEstimate.translation().y());
+                    CF.infVec.push_back(curEstimate.translation().z());
                 }
 
                 // Add the number of means to ROS message
