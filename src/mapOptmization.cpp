@@ -378,8 +378,11 @@ public:
 
             // For all time steps other than 0th, wait for go ahead from boss before continuing 
             if (timeStep > 0) {
+                std::cout << "Waiting for go ahead from boss..." << endl;
                 // boost::shared_ptr<std_msgs::String> sharedBossPtr;
-                ros::topic::waitForMessage<std_msgs::String>("boss");
+                boost::shared_ptr<std_msgs::String const> boss_msg_ptr;
+                boss_msg_ptr = ros::topic::waitForMessage<std_msgs::String>("boss");
+                boss_msg_ptr = NULL;
             }
 
             // Increment time step tracker
@@ -1613,11 +1616,20 @@ public:
 
     void saveKeyFramesAndFactor(int timeStep)
     {
+        std::cout << "k = " << timeStep << endl;
         // Wait for SLAM Request from tracking algorithm before proceeding UNLESS it's time step 0
         // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
-        ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
+        if (timeStep != 0) {
+            std::cout << "Waiting for communication from tracking algo..." << endl;
+            boost::shared_ptr<lio_sam::SLAMRequest const> requested_factors;
+            requested_factors = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
+            key_idx = (*requested_factors).timeSteps;
+            requested_factors = NULL;
+            std::cout << "Receieved communication from tracking algo..." << endl;
+        }
 
         if (key_idx.at(0) == -1) {
+            std::cout << "Factor NOT requested by tracking algo..." << endl;
             if (saveFrame() == false)
                 return;
         }
@@ -1666,6 +1678,7 @@ public:
         // key_idx.push_back(10);
 
         if (key_idx.at(0) != -1) { // Only send factors if data was requested by tracking algorithm
+            std::cout << "Factors requested by tracking algo..." << endl;
             // Extract vector of keys and "reset" it to be empty
             KeyVector cur_keys = isamCurrentEstimate.keys();
             int num_keys = cur_keys.size();
@@ -1681,7 +1694,14 @@ public:
                 }
             }
 
-            if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
+            // cout << "Cur Keys:";
+            // for (int i = 0; i < cur_keys.size(); i++) {
+            //     cout << " " << cur_keys.at(i);
+            // }
+            // cout << endl << "Size: " << cur_keys.size() << endl << "Num: " << num_keys << endl;
+
+            // if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
+            if (!cur_keys.empty()) {
                 // create instance of marginals class
                 gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
 
@@ -1767,6 +1787,7 @@ public:
                 // factors.numMeans = cur_keys.size();
 
                 // Publish CF message
+                std::cout << "Sending data to tracking algorithm..." << endl;
                 pubCF.publish(CF);
             }
         }
