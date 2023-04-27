@@ -1788,6 +1788,7 @@ public:
 
                 // Publish CF message
                 std::cout << "Sending data to tracking algorithm..." << endl;
+                ros::Duration(0.5).sleep();
                 pubCF.publish(CF);
             }
         }
