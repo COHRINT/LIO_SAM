@@ -1616,14 +1616,19 @@ public:
 
     void saveKeyFramesAndFactor(int timeStep)
     {
-        std::cout << "k = " << timeStep << endl;
+        std::cout << "here k = " << timeStep << endl;
         // Wait for SLAM Request from tracking algorithm before proceeding UNLESS it's time step 0
         // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
         if (timeStep != 0) {
             std::cout << "Waiting for communication from tracking algo..." << endl;
             boost::shared_ptr<lio_sam::SLAMRequest const> requested_factors;
+            std::cout << "After boost" << endl;
             requested_factors = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
             key_idx = (*requested_factors).timeSteps;
+            for (int i =0; i < key_idx.size(); i++) {
+                    cout << key_idx.at(i) << " ";
+                }
+            cout << endl;
             requested_factors = NULL;
             std::cout << "Receieved communication from tracking algo..." << endl;
         }
@@ -1681,14 +1686,28 @@ public:
             std::cout << "Factors requested by tracking algo..." << endl;
             // Extract vector of keys and "reset" it to be empty
             KeyVector cur_keys = isamCurrentEstimate.keys();
+            cout << "****************************************************" << endl;
+            cout << "Current keys: ";
+            for (int i =0; i < cur_keys.size(); i++) {
+                cout << cur_keys.at(i) << " ";
+            }
+                cout << endl;
             int num_keys = cur_keys.size();
             cur_keys.erase(cur_keys.begin(),cur_keys.end());
+            std::cout << "num keys..." << endl;
+            std::cout << num_keys << endl;
+            // for (int i =0; i < num_keys.size(); i++) {
+            //         cout << num_keys.at(i) << " ";
+            //     }
+            // cout << endl;
 
             // Only save specified keys
-            for (int i = 0; i < num_keys; i++) {
+            for (int i = 0; i < num_keys+1; i++) {
                 for (int j = 0; j < key_idx.size(); j++) {
                     if (i == key_idx.at(j)) {
                         cur_keys.push_back(i);
+                        std::cout << "In the loop..." << endl;
+                        std::cout << i << endl;
                         break;
                     }
                 }
@@ -1788,7 +1807,7 @@ public:
 
                 // Publish CF message
                 std::cout << "Sending data to tracking algorithm..." << endl;
-                ros::Duration(1.0).sleep();
+                ros::Duration(2.0).sleep();
                 pubCF.publish(CF);
             }
         }
