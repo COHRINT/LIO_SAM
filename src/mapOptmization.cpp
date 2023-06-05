@@ -370,6 +370,8 @@ public:
 
             saveKeyFramesAndFactor(timeStep);
 
+            sendMsgToTracking(timeStep)
+
             correctPoses();
 
             publishOdometry();
@@ -1616,28 +1618,10 @@ public:
 
     void saveKeyFramesAndFactor(int timeStep)
     {
-        std::cout << "here k = " << timeStep << endl;
-        // Wait for SLAM Request from tracking algorithm before proceeding UNLESS it's time step 0
-        // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
-        if (timeStep != 0) {
-            std::cout << "Waiting for communication from tracking algo..." << endl;
-            boost::shared_ptr<lio_sam::SLAMRequest const> requested_factors;
-            std::cout << "After boost" << endl;
-            requested_factors = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
-            key_idx = (*requested_factors).timeSteps;
-            for (int i =0; i < key_idx.size(); i++) {
-                    cout << key_idx.at(i) << " ";
-                }
-            cout << endl;
-            requested_factors = NULL;
-            std::cout << "Receieved communication from tracking algo..." << endl;
-        }
-
-        if (key_idx.at(0) == -1) {
-            std::cout << "Factor NOT requested by tracking algo..." << endl;
-            if (saveFrame() == false)
-                return;
-        }
+        
+        if (saveFrame() == false)
+            return;
+        
 
         // odom factor
         addOdomFactor();
@@ -1673,145 +1657,7 @@ public:
         Pose3 latestEstimate;
 
         isamCurrentEstimate = isam->calculateEstimate();
-        latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);
-
-        // define which factors to save
-        // std::vector<long unsigned int> key_idx;
-        // key_idx.push_back(1);
-        // key_idx.push_back(4);
-        // key_idx.push_back(7);
-        // key_idx.push_back(10);
-
-        if (key_idx.at(0) != -1) { // Only send factors if data was requested by tracking algorithm
-            std::cout << "Factors requested by tracking algo..." << endl;
-            // Extract vector of keys and "reset" it to be empty
-            KeyVector cur_keys = isamCurrentEstimate.keys();
-            cout << "****************************************************" << endl;
-            cout << "Current keys: ";
-            for (int i =0; i < cur_keys.size(); i++) {
-                cout << cur_keys.at(i) << " ";
-            }
-                cout << endl;
-            int num_keys = cur_keys.size();
-            cur_keys.erase(cur_keys.begin(),cur_keys.end());
-            std::cout << "num keys..." << endl;
-            std::cout << num_keys << endl;
-            // for (int i =0; i < num_keys.size(); i++) {
-            //         cout << num_keys.at(i) << " ";
-            //     }
-            // cout << endl;
-
-            // Only save specified keys
-            for (int i = 0; i < num_keys+1; i++) {
-                for (int j = 0; j < key_idx.size(); j++) {
-                    if (i == key_idx.at(j)) {
-                        cur_keys.push_back(i);
-                        std::cout << "In the loop..." << endl;
-                        std::cout << i << endl;
-                        break;
-                    }
-                }
-            }
-
-            // cout << "Cur Keys:";
-            // for (int i = 0; i < cur_keys.size(); i++) {
-            //     cout << " " << cur_keys.at(i);
-            // }
-            // cout << endl << "Size: " << cur_keys.size() << endl << "Num: " << num_keys << endl;
-
-            // if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
-            if (!cur_keys.empty()) {
-                // create instance of marginals class
-                gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
-
-                cout << "****************************************************" << endl;
-                cout << "Tracking Algorithm Requested Factor for Time Steps: ";
-                for (int i =0; i < cur_keys.size(); i++) {
-                    cout << cur_keys.at(i) << " ";
-                }
-                cout << endl;
-                // curMarginal.print();
-
-                // compute joint marginal covariance
-                gtsam::JointMarginal curJointMarginal = curMarginal.jointMarginalCovariance(cur_keys);
-                // curJointMarginal.print();
-
-                // generate joint covariance matrix
-                // gtsam::Matrix curJointCovarianceMatrix = curJointMarginal.fullMatrix();
-                // cout << "Joint Covariance Matrix: " << endl;
-                // print(curJointCovarianceMatrix);
-
-                // // compute joint marginal information
-                gtsam::JointMarginal curJointInformation = curMarginal.jointMarginalInformation(cur_keys);
-                // // curJointMarginal.print();
-
-                // generate joint information matrix
-                gtsam::Matrix curJointInformationMatrix = curJointInformation.fullMatrix();
-                // cout << "Joint Information Matrix: " << endl;
-                // print(curJointInformationMatrix);
-
-                // compute mean
-                // cout << "****************************************************" << endl;
-                // cout << "Means: " << endl;
-                // cout << "calculateEstimate:" << endl;
-                // for (int i = 0; i < cur_keys.size(); i++) {
-                //     Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
-                //     cout << cur_keys.at(i) << ": ";
-                //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
-                //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
-                // }
-                // cout << endl;
-
-                // Initialize CF message
-                // lio_sam::factors factors; // Deprecated
-                lio_sam::ChannelFilter CF;
-
-                // Add current keys to ROS message
-                // for (int i = 0; i < cur_keys.size(); i++) {
-                //     factors.keys.push_back(cur_keys.at(i));
-                // }
-
-                // Add information matrix to CF message
-                for (int i = 0; i < curJointInformationMatrix.rows(); i++) {
-                    for (int j = 0; j < curJointInformationMatrix.cols(); j++) {
-                        CF.infMat.push_back(curJointInformationMatrix(i,j));
-                    }
-                }
-
-                // Add covariance matrix to ROS message
-                // for (int i = 0; i < curJointCovarianceMatrix.rows(); i++) {
-                //     for (int j = 0; j < curJointCovarianceMatrix.cols(); j++) {
-                //         factors.covarianceMatrix.push_back(curJointCovarianceMatrix(i,j));
-                //     }
-                // }
-                
-                // Add dimension of information matrix to CF message
-                CF.matrixDim = curJointInformationMatrix.rows();
-
-                // Add dimension of covariance matrix to ROS message
-                // factors.covarianceMatrixDim = curJointCovarianceMatrix.rows();
-
-                // Add means to CF message
-                for (int i = 0; i < cur_keys.size(); i++) {
-                    Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
-                    CF.infVec.push_back(curEstimate.rotation().roll());
-                    CF.infVec.push_back(curEstimate.rotation().pitch());
-                    CF.infVec.push_back(curEstimate.rotation().yaw());
-                    CF.infVec.push_back(curEstimate.translation().x());
-                    CF.infVec.push_back(curEstimate.translation().y());
-                    CF.infVec.push_back(curEstimate.translation().z());
-                }
-
-                // Add the number of means to ROS message
-                // factors.numMeans = cur_keys.size();
-
-                // Publish CF message
-                std::cout << "Sending data to tracking algorithm..." << endl;
-                ros::Duration(2.0).sleep();
-                pubCF.publish(CF);
-            }
-        }
-
+        latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);      
         // cout << "****************************************************" << endl;
         // isamCurrentEstimate.print("Current estimate: ");
 
@@ -1843,34 +1689,6 @@ public:
         transformTobeMapped[3] = latestEstimate.translation().x();
         transformTobeMapped[4] = latestEstimate.translation().y();
         transformTobeMapped[5] = latestEstimate.translation().z();
-
-        // cout << "****************************************************" << endl;
-        // cout << "LIO-SAM Pose:" << endl;
-        // std::cout << "\n--\n";
-        // for (int i=0; i < 6; i++) {
-        //     std::cout << transformTobeMapped[i] << " ";
-        // };
-        // std::cout << "\n\n\n";
-
-        // add position + covariance data to queue
-        nav_msgs::Odometry test_pose;
-        test_pose.header.stamp = timeLaserInfoStamp;
-        test_pose.header.frame_id = odometryFrame;
-        test_pose.child_frame_id = ns_global+"/odom_mapping";
-        test_pose.pose.pose.position.x = transformTobeMapped[3];
-        test_pose.pose.pose.position.y = transformTobeMapped[4];
-        test_pose.pose.pose.position.z = transformTobeMapped[5];
-        test_pose.pose.covariance[0] = poseCovariance(3,3);
-        test_pose.pose.covariance[1] = poseCovariance(3,4);
-        test_pose.pose.covariance[2] = poseCovariance(3,5);
-        test_pose.pose.covariance[6] = poseCovariance(4,3);
-        test_pose.pose.covariance[7] = poseCovariance(4,4);
-        test_pose.pose.covariance[8] = poseCovariance(4,5);
-        test_pose.pose.covariance[12] = poseCovariance(5,3);
-        test_pose.pose.covariance[13] = poseCovariance(5,4);
-        test_pose.pose.covariance[14] = poseCovariance(5,5);
-        // std::cout << "\nCheckpoint 3\n";
-        testQueue.push_back(test_pose);
 
         // save all the received edge and surf points
         pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
@@ -2062,6 +1880,215 @@ public:
             }
         }
     }
+    void sendMsgToTracking(int timeStep)
+    {
+        std::cout << "here k = " << timeStep << endl;
+        // Wait for SLAM Request from tracking algorithm before proceeding UNLESS it's time step 0
+        // boost::shared_ptr<lio_sam::SLAMRequest> sharedPtr;
+        if (timeStep != 0) {
+            std::cout << "Waiting for communication from tracking algo..." << endl;
+            boost::shared_ptr<lio_sam::SLAMRequest const> requested_factors;
+            std::cout << "After boost" << endl;
+            requested_factors = ros::topic::waitForMessage<lio_sam::SLAMRequest>("SLAM_chatter_"+ns_global);
+            key_idx = (*requested_factors).timeSteps;
+            for (int i =0; i < key_idx.size(); i++) {
+                    cout << key_idx.at(i) << " ";
+                }
+            cout << endl;
+            requested_factors = NULL;
+            std::cout << "Receieved communication from tracking algo..." << endl;
+        }
+
+        if (key_idx.at(0) == -1) {
+            std::cout << "Factor NOT requested by tracking algo..." << endl;
+            return;
+        }
+
+              
+
+        isamCurrentEstimate = isam->calculateEstimate();
+        latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);
+
+        // define which factors to save
+        // std::vector<long unsigned int> key_idx;
+        
+        if (key_idx.at(0) != -1) { // Only send factors if data was requested by tracking algorithm
+            std::cout << "Factors requested by tracking algo..." << endl;
+            // Extract vector of keys and "reset" it to be empty
+            KeyVector cur_keys = isamCurrentEstimate.keys();
+            cout << "****************************************************" << endl;
+            cout << "Current keys: ";
+            for (int i =0; i < cur_keys.size(); i++) {
+                cout << cur_keys.at(i) << " ";
+            }
+                cout << endl;
+            int num_keys = cur_keys.size();
+            cur_keys.erase(cur_keys.begin(),cur_keys.end());
+            std::cout << "num keys..." << endl;
+            std::cout << num_keys << endl;
+            // for (int i =0; i < num_keys.size(); i++) {
+            //         cout << num_keys.at(i) << " ";
+            //     }
+            // cout << endl;
+
+            // Only save specified keys
+            for (int i = 0; i < num_keys+1; i++) {
+                for (int j = 0; j < key_idx.size(); j++) {
+                    if (i == key_idx.at(j)) {
+                        cur_keys.push_back(i);
+                        std::cout << "In the loop..." << endl;
+                        std::cout << i << endl;
+                        break;
+                    }
+                }
+            }
+
+            // cout << "Cur Keys:";
+            // for (int i = 0; i < cur_keys.size(); i++) {
+            //     cout << " " << cur_keys.at(i);
+            // }
+            // cout << endl << "Size: " << cur_keys.size() << endl << "Num: " << num_keys << endl;
+
+            // if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
+            if (!cur_keys.empty()) {
+                // create instance of marginals class
+                gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
+
+                cout << "****************************************************" << endl;
+                cout << "Tracking Algorithm Requested Factor for Time Steps: ";
+                for (int i =0; i < cur_keys.size(); i++) {
+                    cout << cur_keys.at(i) << " ";
+                }
+                cout << endl;
+                // curMarginal.print();
+
+                // compute joint marginal covariance
+                gtsam::JointMarginal curJointMarginal = curMarginal.jointMarginalCovariance(cur_keys);
+                // curJointMarginal.print();
+
+                // generate joint covariance matrix
+                // gtsam::Matrix curJointCovarianceMatrix = curJointMarginal.fullMatrix();
+                // cout << "Joint Covariance Matrix: " << endl;
+                // print(curJointCovarianceMatrix);
+
+                // // compute joint marginal information
+                gtsam::JointMarginal curJointInformation = curMarginal.jointMarginalInformation(cur_keys);
+                // // curJointMarginal.print();
+
+                // generate joint information matrix
+                gtsam::Matrix curJointInformationMatrix = curJointInformation.fullMatrix();
+                // cout << "Joint Information Matrix: " << endl;
+                // print(curJointInformationMatrix);
+
+                // compute mean
+                // cout << "****************************************************" << endl;
+                // cout << "Means: " << endl;
+                // cout << "calculateEstimate:" << endl;
+                // for (int i = 0; i < cur_keys.size(); i++) {
+                //     Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                //     cout << cur_keys.at(i) << ": ";
+                //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
+                //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
+                // }
+                // cout << endl;
+
+                // Initialize CF message
+                // lio_sam::factors factors; // Deprecated
+                lio_sam::ChannelFilter CF;
+
+                // Add current keys to ROS message
+                // for (int i = 0; i < cur_keys.size(); i++) {
+                //     factors.keys.push_back(cur_keys.at(i));
+                // }
+
+                // Add information matrix to CF message
+                for (int i = 0; i < curJointInformationMatrix.rows(); i++) {
+                    for (int j = 0; j < curJointInformationMatrix.cols(); j++) {
+                        CF.infMat.push_back(curJointInformationMatrix(i,j));
+                    }
+                }
+
+                // Add covariance matrix to ROS message
+                // for (int i = 0; i < curJointCovarianceMatrix.rows(); i++) {
+                //     for (int j = 0; j < curJointCovarianceMatrix.cols(); j++) {
+                //         factors.covarianceMatrix.push_back(curJointCovarianceMatrix(i,j));
+                //     }
+                // }
+                
+                // Add dimension of information matrix to CF message
+                CF.matrixDim = curJointInformationMatrix.rows();
+
+                // Add dimension of covariance matrix to ROS message
+                // factors.covarianceMatrixDim = curJointCovarianceMatrix.rows();
+
+                // Add means to CF message
+                for (int i = 0; i < cur_keys.size(); i++) {
+                    Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                    CF.infVec.push_back(curEstimate.rotation().roll());
+                    CF.infVec.push_back(curEstimate.rotation().pitch());
+                    CF.infVec.push_back(curEstimate.rotation().yaw());
+                    CF.infVec.push_back(curEstimate.translation().x());
+                    CF.infVec.push_back(curEstimate.translation().y());
+                    CF.infVec.push_back(curEstimate.translation().z());
+                }
+
+                // Add the number of means to ROS message
+                // factors.numMeans = cur_keys.size();
+
+                // Publish CF message
+                std::cout << "Sending data to tracking algorithm..." << endl;
+                ros::Duration(3.0).sleep();
+                pubCF.publish(CF);
+            }
+        }
+
+        // cout << "****************************************************" << endl;
+        // isamCurrentEstimate.print("Current estimate: ");
+
+        // cout << "****************************************************" << endl;
+        // cout << "Pose covariance:" << endl;
+        // cout << isam->marginalCovariance(isamCurrentEstimate.size()-1) << endl << endl;
+        poseCovariance = isam->marginalCovariance(isamCurrentEstimate.size()-1);
+
+        // save updated transform
+        transformTobeMapped[0] = latestEstimate.rotation().roll();
+        transformTobeMapped[1] = latestEstimate.rotation().pitch();
+        transformTobeMapped[2] = latestEstimate.rotation().yaw();
+        transformTobeMapped[3] = latestEstimate.translation().x();
+        transformTobeMapped[4] = latestEstimate.translation().y();
+        transformTobeMapped[5] = latestEstimate.translation().z();
+
+        // cout << "****************************************************" << endl;
+        // cout << "LIO-SAM Pose:" << endl;
+        // std::cout << "\n--\n";
+        // for (int i=0; i < 6; i++) {
+        //     std::cout << transformTobeMapped[i] << " ";
+        // };
+        // std::cout << "\n\n\n";
+
+        // add position + covariance data to queue
+        nav_msgs::Odometry test_pose;
+        test_pose.header.stamp = timeLaserInfoStamp;
+        test_pose.header.frame_id = odometryFrame;
+        test_pose.child_frame_id = ns_global+"/odom_mapping";
+        test_pose.pose.pose.position.x = transformTobeMapped[3];
+        test_pose.pose.pose.position.y = transformTobeMapped[4];
+        test_pose.pose.pose.position.z = transformTobeMapped[5];
+        test_pose.pose.covariance[0] = poseCovariance(3,3);
+        test_pose.pose.covariance[1] = poseCovariance(3,4);
+        test_pose.pose.covariance[2] = poseCovariance(3,5);
+        test_pose.pose.covariance[6] = poseCovariance(4,3);
+        test_pose.pose.covariance[7] = poseCovariance(4,4);
+        test_pose.pose.covariance[8] = poseCovariance(4,5);
+        test_pose.pose.covariance[12] = poseCovariance(5,3);
+        test_pose.pose.covariance[13] = poseCovariance(5,4);
+        test_pose.pose.covariance[14] = poseCovariance(5,5);
+        // std::cout << "\nCheckpoint 3\n";
+        testQueue.push_back(test_pose);
+
+        
+    }
+
 };
 
 
