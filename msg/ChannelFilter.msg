@@ -4,3 +4,4 @@ string[] dims
 int16 matrixDim
 float64[] infMat
 float64[] infVec
+int16 cur_key
