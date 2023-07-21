@@ -34,6 +34,7 @@ add_message_files(
   factors.msg
   ChannelFilter.msg
   SLAMRequest.msg
+  Track2Slam.msg
 )
 
 add_service_files(
