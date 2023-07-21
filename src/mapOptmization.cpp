@@ -120,89 +120,89 @@ public:
     pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D;
     pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
     pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
-    void addTestFactor() {
-        // std::cout << "\nCheckpoint 1\n";
-        // if no factors, don't proceed
-        if (testQueue.empty()) {
-            return;
-        }
+    // void addTestFactor() {
+    //     // std::cout << "\nCheckpoint 1\n";
+    //     // if no factors, don't proceed
+    //     if (testQueue.empty()) {
+    //         return;
+    //     }
 
-        if (cloudKeyPoses3D->points.empty()) { // if system hasn't started yet, don't proceed
-            return;
-        } else { // if system too close to starting position, don't proceed
-            if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0) {
-                return;
-            }
-        }
+    //     if (cloudKeyPoses3D->points.empty()) { // if system hasn't started yet, don't proceed
+    //         return;
+    //     } else { // if system too close to starting position, don't proceed
+    //         if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0) {
+    //             return;
+    //         }
+    //     }
 
-        // variable to store last factor that was added
-        static PointType lastFactor;
+    //     // variable to store last factor that was added
+    //     static PointType lastFactor;
 
-        while (!testQueue.empty()) {
-            // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
-            if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
-                // remove factor from queue
-                testQueue.pop_front();
-            } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
-                // don't add factor yet
-                break;
-            } else {
-                // std::cout << "\nCheckpoint 2\n";
+    //     while (!testQueue.empty()) {
+    //         // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
+    //         if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
+    //             // remove factor from queue
+    //             testQueue.pop_front();
+    //         } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
+    //             // don't add factor yet
+    //             break;
+    //         } else {
+    //             // std::cout << "\nCheckpoint 2\n";
 
-                // pull factor from queue
-                nav_msgs::Odometry thisFactor = testQueue.front();
-                testQueue.pop_front();
+    //             // pull factor from queue
+    //             nav_msgs::Odometry thisFactor = testQueue.front();
+    //             testQueue.pop_front();
 
-                // extract measurements
-                float x = thisFactor.pose.pose.position.x;
-                float y = thisFactor.pose.pose.position.y;
-                float z = thisFactor.pose.pose.position.z;
+    //             // extract measurements
+    //             float x = thisFactor.pose.pose.position.x;
+    //             float y = thisFactor.pose.pose.position.y;
+    //             float z = thisFactor.pose.pose.position.z;
 
-                // extract covariance
-                Eigen::MatrixXd cov_matrix;
-                cov_matrix(0,0) = thisFactor.pose.covariance[0];
-                cov_matrix(0,1) = thisFactor.pose.covariance[1];
-                cov_matrix(0,2) = thisFactor.pose.covariance[2];
-                cov_matrix(1,0) = thisFactor.pose.covariance[6];
-                cov_matrix(1,1) = thisFactor.pose.covariance[7];
-                cov_matrix(1,2) = thisFactor.pose.covariance[8];
-                cov_matrix(2,0) = thisFactor.pose.covariance[12];
-                cov_matrix(2,1) = thisFactor.pose.covariance[13];
-                cov_matrix(2,2) = thisFactor.pose.covariance[14];
-                // This might be how to insert a non diagonal model
-                noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
+    //             // extract covariance
+    //             Eigen::MatrixXd cov_matrix;
+    //             cov_matrix(0,0) = thisFactor.pose.covariance[0];
+    //             cov_matrix(0,1) = thisFactor.pose.covariance[1];
+    //             cov_matrix(0,2) = thisFactor.pose.covariance[2];
+    //             cov_matrix(1,0) = thisFactor.pose.covariance[6];
+    //             cov_matrix(1,1) = thisFactor.pose.covariance[7];
+    //             cov_matrix(1,2) = thisFactor.pose.covariance[8];
+    //             cov_matrix(2,0) = thisFactor.pose.covariance[12];
+    //             cov_matrix(2,1) = thisFactor.pose.covariance[13];
+    //             cov_matrix(2,2) = thisFactor.pose.covariance[14];
+    //             // This might be how to insert a non diagonal model
+    //             noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
 
-                // variable to store factor that is being added
-                PointType curFactor;
-                curFactor.x = x;
-                curFactor.y = y;
-                curFactor.z = z;
+    //             // variable to store factor that is being added
+    //             PointType curFactor;
+    //             curFactor.x = x;
+    //             curFactor.y = y;
+    //             curFactor.z = z;
 
-                // test whether to store current factor as previous factor for next iteration
-                if (pointDistance(curFactor, lastFactor) < 5.0) {
-                    continue;
-                } else {
-                    lastFactor = curFactor;
-                }
+    //             // test whether to store current factor as previous factor for next iteration
+    //             if (pointDistance(curFactor, lastFactor) < 5.0) {
+    //                 continue;
+    //             } else {
+    //                 lastFactor = curFactor;
+    //             }
 
-                // add factor to graph
-                gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
-                gtSAMgraph.add(test_factor);
+    //             // add factor to graph
+    //             gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
+    //             gtSAMgraph.add(test_factor);
                
 
-                // From loop closure factor: 
-                // int indexFrom = loopIndexQueue[i].first;
-                // int indexTo = loopIndexQueue[i].second;
-                // gtsam::Pose3 poseBetween = loopPoseQueue[i];
-                // gtsam::noiseModel::Diagonal::shared_ptr noiseBetween = loopNoiseQueue[i];
-                // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, poseBetween, noiseBetween));
-                // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, vector, noise matrix));
-                // gtsam::BetweenFactor<Pose3>
-                // Pose3 Pose;
-                // Pose.
-            }
-        }
-    }
+    //             // From loop closure factor: 
+    //             // int indexFrom = loopIndexQueue[i].first;
+    //             // int indexTo = loopIndexQueue[i].second;
+    //             // gtsam::Pose3 poseBetween = loopPoseQueue[i];
+    //             // gtsam::noiseModel::Diagonal::shared_ptr noiseBetween = loopNoiseQueue[i];
+    //             // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, poseBetween, noiseBetween));
+    //             // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, vector, noise matrix));
+    //             // gtsam::BetweenFactor<Pose3>
+    //             // Pose3 Pose;
+    //             // Pose.
+    //         }
+    //     }
+    // }
     pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner feature set from odoOptimization
     pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf feature set from odoOptimization
     pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner feature set from odoOptimization
@@ -2413,26 +2413,9 @@ Matrix reshapeMatrix(const std::vector<double>& flattened, int rows, int columns
     return reshaped;
 }
 
-// template<typename T>
-// std::vector<T> getDiagonal(const std::vector<std::vector<T>>& matrix) {
-//     std::vector<T> diagonal(matrix.size());
-    
-//     std::transform(matrix.begin(), matrix.end(), diagonal.begin(),
-//                    [](const std::vector<T>& row) { return row[&row - &matrix[0]]; });
-    
-//     return diagonal;
-// }
-
-// template<typename T>
-// Function to extract a subset of a vector and a matrix
-// std::pair<Vector, Matrix> extractSubset(const std::vector<std::vector<double>>& jointVector,
-//                                                                          const std::vector<std::vector<double>>& jointMatrix,
-//                                                                          size_t startRow, size_t endRow,
-                                                                        //  size_t startCol, size_t endCol) {
 std::pair<Vector, Matrix> extractSubset(const Matrix& jointVector, const Matrix& jointMatrix,
                                                                          Eigen::Index startRow, Eigen::Index endRow,
-                                                                         Eigen::Index startCol, Eigen::Index endCol) {
-    // largerVector and 
+                                                                         Eigen::Index startCol, Eigen::Index endCol) { 
     
     // Extract the subset vector
     if (startRow > endRow || endRow >= jointVector.rows()) {
@@ -2452,23 +2435,9 @@ std::pair<Vector, Matrix> extractSubset(const Matrix& jointVector, const Matrix&
     // Vector subsetVector(jointVector.begin() + startRow, jointVector.begin() + endRow + 1);
     Vector subsetVector = jointVector.block(startRow, 0, subsetRows, 1);
 
-    // // Extract the subset matrix
-    // if (startRow > endRow || endRow >= jointMatrix.size() || startCol > endCol || endCol >= jointMatrix[0].size()) {
-    //     std::cerr << "Invalid indices for subset matrix!" << std::endl;
-    //     return std::make_pair(Vector(), Matrix());
-    // }
- 
-
     Matrix subsetMatrix = jointMatrix.block(startRow, startCol, subsetRows, subsetCols);
 
-    // Matrix subsetMatrix(subsetRows, std::vector<double>(subsetCols));
-
-    // for (size_t i = startRow; i <= endRow; ++i) {
-    //     for (size_t j = startCol; j <= endCol; ++j) {
-    //         subsetMatrix(i - startRow,j - startCol) = jointMatrix[i][j];
-    //     }
-    // }
-
+    
     return std::make_pair(subsetVector, subsetMatrix);
 }
 
@@ -2485,15 +2454,8 @@ void addFactorFromTracking(const lio_sam::Track2Slam::ConstPtr& msgIn) {
     int rows = msgIn->matrixDim;
     int columns = msgIn->matrixDim;
 
-    // std::vector<std::vector<int>> infmat = reshapeMatrix(infmatflat, rows, columns);
-    // std::vector<std::vector<int>> infvec = reshapeMatrix(infvecflat, rows, 1);
-    // std::vector<std::vector<double>>  covMatrix = reshapeMatrix(covMatflat, rows, columns);
-    // std::vector<std::vector<double>>  meanVec = reshapeMatrix(meanVecflat, rows, 1);
-
     Matrix covMatrix = reshapeMatrix(covMatflat, rows, columns);
     Matrix meanVec = reshapeMatrix(meanVecflat, rows, 1);
-    // Matrix covMatrix = infmat.inverse();
-    // Vector muVec = covMatrix * infvec;
 
     int n = indexVec.size();
 
@@ -2509,34 +2471,45 @@ void addFactorFromTracking(const lio_sam::Track2Slam::ConstPtr& msgIn) {
         Vector& margMean = subset.first;
         Matrix& margCov = subset.second;
         
-        // Eigen::MatrixXd cov_matrix;
         noiseModel::Gaussian::shared_ptr mainDiagBlock = noiseModel::Gaussian::Covariance(margCov);
         // gtSAMgraph.add(PriorFactor<Pose3>(indexVec[i] , margMean, mainDiagBlock));
         gtSAMgraph.add(GPSFactor(indexVec[i] , margMean, mainDiagBlock));
+        // gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
+        // gtSAMgraph.add(test_factor);
 
-
-
-        // // int k = 0;
-        // Vector6 margCovDiag;
-        // // Vector6 margMean;
-        // float margMean[6];
-        // // std::vector<float> margMean;
-        // for (int j = 6*i; j<6*(i+1); j++){   // Go over rows
-        //     // margMean[k] = meanVec[j][0];
-        //     // std::vector<std::vector<int>> margCovDiag[j] = covMatrix[j][j];
-        //     for (int k = 6*i; k<6*(i+1); k++){   // Go over columns
-        //         margCovDiag[k] = covMatrix[j][j];
-            
-        //     covMatrix[j][j] = 0;    // set diagonal value to 0
-
-        //     // k++;
-        //     }
-        // }
-        // noiseModel::Diagonal::shared_ptr uniNoise = noiseModel::Diagonal::Variances(margCovDiag);
-        // gtSAMgraph.add(PriorFactor<Pose3>(indexVec[i], trans2gtsamPose(margMean), uniNoise));
     } 
     
-    // generate between factors 
+    // generate between factors - run on the off-diagonal
+    Vector corrVector = Vector::Zero(12);
+    for (int i = 0; i<n; i++){
+        size_t startRow = 6*i;
+        size_t endRow = 6*(i+1);
+        for (int j=i+1; j<n; j++){
+            size_t startCol = 6*j;
+            size_t endCol = 6*(j+1);
+
+            Matrix corrMatrix = Matrix::Zero(12, 12);
+            
+            auto subset = extractSubset(meanVec, covMatrix, startRow, endRow, startCol, endCol);
+
+            // Vector& margMean = subset.first;
+            Matrix& margCov = subset.second;
+
+            corrMatrix.block(startRow, startCol, 6, 6)<< margCov;  
+            corrMatrix.block(startCol, startRow, 6, 6)<< margCov.transpose();         
+
+            noiseModel::Gaussian::shared_ptr offDiagBlock = noiseModel::Gaussian::Covariance(corrMatrix);
+        // gtSAMgraph.add(PriorFactor<Pose3>(indexVec[i] , margMean, mainDiagBlock));
+            gtSAMgraph.add(BetweenFactor<Vector>(indexVec[i], indexVec[j] , corrVector, offDiagBlock));
+
+
+
+        }
+
+    }
+
+
+
     //  for (int i = 0; i<n; i++){
     //     for (int j=i+1; j<n; j++){
     //         int k = 0;
@@ -2593,73 +2566,73 @@ void addFactorFromTracking(const lio_sam::Track2Slam::ConstPtr& msgIn) {
     
 
 
-        // variable to store last factor that was added
-        static PointType lastFactor;
+        // // variable to store last factor that was added
+        // static PointType lastFactor;
 
-        while (!testQueue.empty()) {
-            // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
-            if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
-                // remove factor from queue
-                testQueue.pop_front();
-            } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
-                // don't add factor yet
-                break;
-            } else {
-                // std::cout << "\nCheckpoint 2\n";
+        // while (!testQueue.empty()) {
+        //     // std::cout << "\nDifference in Times: " << testQueue.front().header.stamp.toSec() - timeLaserInfoCur;
+        //     if (testQueue.front().header.stamp.toSec() < timeLaserInfoCur - 1.0) { // factor too old
+        //         // remove factor from queue
+        //         testQueue.pop_front();
+        //     } else if (testQueue.front().header.stamp.toSec() > timeLaserInfoCur + 1.0) { // factor too new
+        //         // don't add factor yet
+        //         break;
+        //     } else {
+        //         // std::cout << "\nCheckpoint 2\n";
 
-                // pull factor from queue
-                nav_msgs::Odometry thisFactor = testQueue.front();
-                testQueue.pop_front();
+        //         // pull factor from queue
+        //         nav_msgs::Odometry thisFactor = testQueue.front();
+        //         testQueue.pop_front();
 
-                // extract measurements
-                float x = thisFactor.pose.pose.position.x;
-                float y = thisFactor.pose.pose.position.y;
-                float z = thisFactor.pose.pose.position.z;
+        //         // extract measurements
+        //         float x = thisFactor.pose.pose.position.x;
+        //         float y = thisFactor.pose.pose.position.y;
+        //         float z = thisFactor.pose.pose.position.z;
 
-                // extract covariance
-                Eigen::MatrixXd cov_matrix;
-                cov_matrix(0,0) = thisFactor.pose.covariance[0];
-                cov_matrix(0,1) = thisFactor.pose.covariance[1];
-                cov_matrix(0,2) = thisFactor.pose.covariance[2];
-                cov_matrix(1,0) = thisFactor.pose.covariance[6];
-                cov_matrix(1,1) = thisFactor.pose.covariance[7];
-                cov_matrix(1,2) = thisFactor.pose.covariance[8];
-                cov_matrix(2,0) = thisFactor.pose.covariance[12];
-                cov_matrix(2,1) = thisFactor.pose.covariance[13];
-                cov_matrix(2,2) = thisFactor.pose.covariance[14];
-                // This might be how to insert a non diagonal model
-                noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
+        //         // extract covariance
+        //         Eigen::MatrixXd cov_matrix;
+        //         cov_matrix(0,0) = thisFactor.pose.covariance[0];
+        //         cov_matrix(0,1) = thisFactor.pose.covariance[1];
+        //         cov_matrix(0,2) = thisFactor.pose.covariance[2];
+        //         cov_matrix(1,0) = thisFactor.pose.covariance[6];
+        //         cov_matrix(1,1) = thisFactor.pose.covariance[7];
+        //         cov_matrix(1,2) = thisFactor.pose.covariance[8];
+        //         cov_matrix(2,0) = thisFactor.pose.covariance[12];
+        //         cov_matrix(2,1) = thisFactor.pose.covariance[13];
+        //         cov_matrix(2,2) = thisFactor.pose.covariance[14];
+        //         // This might be how to insert a non diagonal model
+        //         noiseModel::Gaussian::shared_ptr test_noise = noiseModel::Gaussian::Covariance(cov_matrix);
 
-                // variable to store factor that is being added
-                PointType curFactor;
-                curFactor.x = x;
-                curFactor.y = y;
-                curFactor.z = z;
+        //         // variable to store factor that is being added
+        //         PointType curFactor;
+        //         curFactor.x = x;
+        //         curFactor.y = y;
+        //         curFactor.z = z;
 
-                // test whether to store current factor as previous factor for next iteration
-                if (pointDistance(curFactor, lastFactor) < 5.0) {
-                    continue;
-                } else {
-                    lastFactor = curFactor;
-                }
+        //         // test whether to store current factor as previous factor for next iteration
+        //         if (pointDistance(curFactor, lastFactor) < 5.0) {
+        //             continue;
+        //         } else {
+        //             lastFactor = curFactor;
+        //         }
 
-                // add factor to graph
-                gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
-                gtSAMgraph.add(test_factor);
+        //         // add factor to graph
+        //         gtsam::GPSFactor test_factor(cloudKeyPoses3D->size(), gtsam::Point3(x, y, z), test_noise);
+        //         gtSAMgraph.add(test_factor);
                
 
-                // From loop closure factor: 
-                // int indexFrom = loopIndexQueue[i].first;
-                // int indexTo = loopIndexQueue[i].second;
-                // gtsam::Pose3 poseBetween = loopPoseQueue[i];
-                // gtsam::noiseModel::Diagonal::shared_ptr noiseBetween = loopNoiseQueue[i];
-                // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, poseBetween, noiseBetween));
-                // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, vector, noise matrix));
-                // gtsam::BetweenFactor<Pose3>
-                // Pose3 Pose;
-                // Pose.
-            }
-        }
+        //         // From loop closure factor: 
+        //         // int indexFrom = loopIndexQueue[i].first;
+        //         // int indexTo = loopIndexQueue[i].second;
+        //         // gtsam::Pose3 poseBetween = loopPoseQueue[i];
+        //         // gtsam::noiseModel::Diagonal::shared_ptr noiseBetween = loopNoiseQueue[i];
+        //         // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, poseBetween, noiseBetween));
+        //         // gtSAMgraph.add(BetweenFactor<Pose3>(indexFrom, indexTo, vector, noise matrix));
+        //         // gtsam::BetweenFactor<Pose3>
+        //         // Pose3 Pose;
+        //         // Pose.
+        //     }
+        // }
     }
 
 };
