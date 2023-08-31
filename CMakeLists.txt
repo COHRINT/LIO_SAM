@@ -41,6 +41,7 @@ add_service_files(
   DIRECTORY srv
   FILES
   save_map.srv
+  request_factors.srv
 )
 
 generate_messages(

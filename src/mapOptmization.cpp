@@ -11,6 +11,7 @@
 #include "utility.h"
 #include "lio_sam/cloud_info.h"
 #include "lio_sam/save_map.h"
+#include "lio_sam/request_factors.h"
 
 #include "lio_sam/factors.h" // Deprecated
 #include "lio_sam/ChannelFilter.h"
@@ -469,6 +470,84 @@ public:
       cout << "Saving map to pcd files completed\n" << endl;
 
       return true;
+    }
+
+    // UNDER DEVELOPMENT
+    bool requestFactorsService(lio_sam::request_factorsRequest& req, lio_sam::request_factorsResponse& res)
+    {
+        // Extract requested time steps (factors)
+        key_idx = req.timeSteps;
+
+        // Shouldn't have to do this anymore b/c service will only be called if we are requesting factors from LIO-SAM
+        // if (key_idx.at(0) == -1) {
+        //     std::cout << "Factor NOT requested by tracking algo..." << endl;
+        //     return;
+        // }
+
+        // Extract latest estimate
+        Pose3 latestEstimate;   
+        isamCurrentEstimate = isam->calculateEstimate();
+        latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);
+
+        std::cout << "Factors requested by tracking algo..." << endl;
+
+        // Extract vector of keys and "reset" it to be empty
+        KeyVector cur_keys = isamCurrentEstimate.keys();
+        cout << "****************************************************" << endl;
+        int num_keys = cur_keys.size();
+        res.cur_key = cur_keys.at(cur_keys.size()-1);  // current LIO-SAM time step
+        cur_keys.erase(cur_keys.begin(),cur_keys.end());
+
+        // Only save specified keys
+        for (int i = 0; i < num_keys; i++) {
+            for (std::vector<short int>::size_type j = 1; j < key_idx.size(); j++) {    // j starts from 1 because 0 is just for indexing
+                if (i == key_idx.at(j)) {
+                    cur_keys.push_back(i);
+                    // std::cout << "In the loop..." << endl;
+                    // std::cout << i << endl;
+                    break;
+                }
+            }
+        }
+        cur_keys.push_back(res.cur_key);  // add last key (current)
+
+        if (!cur_keys.empty()) {
+            // create instance of marginals class
+            gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
+
+            // compute joint marginal covariance
+            gtsam::JointMarginal curJointMarginal = curMarginal.jointMarginalCovariance(cur_keys);
+
+            // // compute joint marginal information
+            gtsam::JointMarginal curJointInformation = curMarginal.jointMarginalInformation(cur_keys);
+
+            // generate joint information matrix
+            gtsam::Matrix curJointInformationMatrix = curJointInformation.fullMatrix();
+
+            // Add information matrix to CF message
+            for (int i = 0; i < curJointInformationMatrix.rows(); i++) {
+                for (int j = 0; j < curJointInformationMatrix.cols(); j++) {
+                    res.infMat.push_back(curJointInformationMatrix(i,j));
+                }
+            }
+            
+            // Add dimension of information matrix to CF message
+            res.matrixDim = curJointInformationMatrix.rows();
+
+            // Add means to CF message
+            for (std::vector<long unsigned int>::size_type i = 0; i < cur_keys.size(); i++) {
+                Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                res.infVec.push_back(curEstimate.rotation().roll());
+                res.infVec.push_back(curEstimate.rotation().pitch());
+                res.infVec.push_back(curEstimate.rotation().yaw());
+                res.infVec.push_back(curEstimate.translation().x());
+                res.infVec.push_back(curEstimate.translation().y());
+                res.infVec.push_back(curEstimate.translation().z());
+            }
+
+            // Send response
+            return res
+        }
     }
 
     void visualizeGlobalMapThread()
@@ -1901,7 +1980,9 @@ public:
         // save path for visualization
         updatePath(thisPose6D);
 
-        sendMsgToTracking(timeStep);
+        sendMsgToTracking(timeStep); // TO DO: replace with service
+
+        // TO DO: wait for go ahead from boss
     }
 
     void correctPoses()
