@@ -108,6 +108,7 @@ public:
 
 
     ros::ServiceServer srvSaveMap;
+    ros::ServiceServer srvRequestFactors;
 
     std::deque<nav_msgs::Odometry> gpsQueue;
     lio_sam::cloud_info cloudInfo;
@@ -210,6 +211,7 @@ public:
         subT2S = nh.subscribe<lio_sam::Track2Slam>("T2S_chatter_"+ns, 1, &mapOptimization::addFactorFromTracking, this, ros::TransportHints().tcpNoDelay());
 
         srvSaveMap  = nh.advertiseService(ns+"/lio_sam/save_map", &mapOptimization::saveMapService, this);
+        srvRequestFactors = nh.advertiseService(ns+"/lio_sam/request_factors", &mapOptimization::requestFactorsService, this);
 
         pubHistoryKeyFrames   = nh.advertise<sensor_msgs::PointCloud2>(ns+"/lio_sam/mapping/icp_loop_closure_history_cloud", 1);
         pubIcpKeyFrames       = nh.advertise<sensor_msgs::PointCloud2>(ns+"/lio_sam/mapping/icp_loop_closure_corrected_cloud", 1);
@@ -546,7 +548,7 @@ public:
             }
 
             // Send response
-            return res
+            return true;
         }
     }
 
@@ -1980,9 +1982,14 @@ public:
         // save path for visualization
         updatePath(thisPose6D);
 
-        sendMsgToTracking(timeStep); // TO DO: replace with service
+        // sendMsgToTracking(timeStep); // Should have been replaced by service: srvRequestFactors (initialized & advertised above)
 
-        // TO DO: wait for go ahead from boss
+        // Wait for go ahead from boss
+        std::cout << "Waiting for go-ahead from boss..." << endl;
+        boost::shared_ptr<std_msgs::String const> boss_msg;
+        boss_msg = ros::topic::waitForMessage<std_msgs::String>("boss");
+        boss_msg = NULL;
+        std::cout << "Receieved go-ahead from boss..." << endl;
     }
 
     void correctPoses()
