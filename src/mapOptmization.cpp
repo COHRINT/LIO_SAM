@@ -1984,12 +1984,14 @@ public:
 
         // sendMsgToTracking(timeStep); // Should have been replaced by service: srvRequestFactors (initialized & advertised above)
 
-        // Wait for go ahead from boss
-        std::cout << "Waiting for go-ahead from boss..." << endl;
-        boost::shared_ptr<std_msgs::String const> boss_msg;
-        boss_msg = ros::topic::waitForMessage<std_msgs::String>("boss");
-        boss_msg = NULL;
-        std::cout << "Receieved go-ahead from boss..." << endl;
+        // Wait for go ahead from boss for all time steps other than 0
+        if (timeStep != 0) {
+            std::cout << "Waiting for go-ahead from boss..." << endl;
+            boost::shared_ptr<std_msgs::String const> boss_msg;
+            boss_msg = ros::topic::waitForMessage<std_msgs::String>("boss");
+            boss_msg = NULL;
+            std::cout << "Receieved go-ahead from boss..." << endl;
+        }
     }
 
     void correctPoses()
