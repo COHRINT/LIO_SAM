@@ -325,13 +325,13 @@ public:
             publishFrames();
 
             // For all time steps other than 0th, wait for go ahead from boss before continuing 
-            if (timeStep > 0) {
-                std::cout << "Waiting for go ahead from boss..." << endl;
-                // boost::shared_ptr<std_msgs::String> sharedBossPtr;
-                boost::shared_ptr<std_msgs::String const> boss_msg_ptr;
-                boss_msg_ptr = ros::topic::waitForMessage<std_msgs::String>("boss");
-                boss_msg_ptr = NULL;
-            }
+            // if (timeStep == -1) {
+            //     std::cout << "Waiting for go ahead from boss..." << endl;
+            //     // boost::shared_ptr<std_msgs::String> sharedBossPtr;
+            //     boost::shared_ptr<std_msgs::String const> boss_msg_ptr;
+            //     boss_msg_ptr = ros::topic::waitForMessage<std_msgs::String>("boss");
+            //     boss_msg_ptr = NULL;
+            // }
 
             // Increment time step tracker
             timeStep = timeStep + 1;
@@ -477,6 +477,7 @@ public:
     // UNDER DEVELOPMENT
     bool requestFactorsService(lio_sam::request_factorsRequest& req, lio_sam::request_factorsResponse& res)
     {
+        std::cout << "In service" << endl;
         // Extract requested time steps (factors)
         key_idx = req.timeSteps;
 
@@ -1984,14 +1985,14 @@ public:
 
         // sendMsgToTracking(timeStep); // Should have been replaced by service: srvRequestFactors (initialized & advertised above)
 
-        // Wait for go ahead from boss for all time steps other than 0
-        if (timeStep != 0) {
-            std::cout << "Waiting for go-ahead from boss..." << endl;
-            boost::shared_ptr<std_msgs::String const> boss_msg;
-            boss_msg = ros::topic::waitForMessage<std_msgs::String>("boss");
-            boss_msg = NULL;
-            std::cout << "Receieved go-ahead from boss..." << endl;
-        }
+        // // Wait for go ahead from boss for all time steps other than 0
+        // if (timeStep != 0) {
+        //     std::cout << "Waiting for go-ahead from boss..." << endl;
+        //     boost::shared_ptr<std_msgs::String const> boss_msg;
+        //     boss_msg = ros::topic::waitForMessage<std_msgs::String>("boss");
+        //     boss_msg = NULL;
+        //     std::cout << "Receieved go-ahead from boss..." << endl;
+        // }
     }
 
     void correctPoses()
