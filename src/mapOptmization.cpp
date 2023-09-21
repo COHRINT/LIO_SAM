@@ -537,6 +537,20 @@ public:
             // Add dimension of information matrix to CF message
             res.matrixDim = curJointInformationMatrix.rows();
 
+            // compute mean
+            cout << "****************************************************" << endl;
+            
+            std::cout << "Means: " << endl;
+            cout << "calculateEstimate:" << endl;
+            for (int i = 0; i < cur_keys.size(); i++) {
+                Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                cout << cur_keys.at(i) << ": ";
+                cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
+                cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
+            }
+            cout << endl;
+
+
             // Add means to CF message
             for (std::vector<long unsigned int>::size_type i = 0; i < cur_keys.size(); i++) {
                 Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
@@ -1938,8 +1952,8 @@ public:
 
         isamCurrentEstimate = isam->calculateEstimate();
         latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);      
-        // cout << "****************************************************" << endl;
-        // isamCurrentEstimate.print("Current estimate: ");
+        cout << "****************************************************" << endl;
+        isamCurrentEstimate.print("Current estimate: ");
 
         thisPose3D.x = latestEstimate.translation().x();
         thisPose3D.y = latestEstimate.translation().y();
@@ -2228,6 +2242,7 @@ public:
         // cout << endl;
 
         // Only save specified keys
+        std::cout << "Factors requested by tracking algo...1" << endl;
         for (int i = 0; i < num_keys; i++) {
             for (std::vector<short int>::size_type j = 1; j < key_idx.size(); j++) {    // j starts from 1 because 0 is just for indexing
                 if (i == key_idx.at(j)) {
@@ -2247,9 +2262,10 @@ public:
         //     cout << " " << cur_keys.at(i);
         // }
         // cout << endl << "Size: " << cur_keys.size() << endl << "Num: " << num_keys << endl;
-
+        std::cout << "Factors requested by tracking algo...1" << endl;
         // if (!cur_keys.empty() && (cur_keys.at(cur_keys.size()-1) == (num_keys-1)) ) {
         if (!cur_keys.empty()) {
+            std::cout << "Factors requested by tracking algo...2" << endl;
             // create instance of marginals class
             gtsam::Marginals curMarginal(isam->getFactorsUnsafe(), isamCurrentEstimate, gtsam::Marginals::Factorization::CHOLESKY);
 
@@ -2280,16 +2296,17 @@ public:
             // print(curJointInformationMatrix);
 
             // compute mean
-            // cout << "****************************************************" << endl;
-            // cout << "Means: " << endl;
-            // cout << "calculateEstimate:" << endl;
-            // for (int i = 0; i < cur_keys.size(); i++) {
-            //     Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
-            //     cout << cur_keys.at(i) << ": ";
-            //     cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
-            //     cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
-            // }
-            // cout << endl;
+            cout << "****************************************************" << endl;
+            
+            std::cout << "Means: " << endl;
+            cout << "calculateEstimate:" << endl;
+            for (int i = 0; i < cur_keys.size(); i++) {
+                Pose3 curEstimate = isamCurrentEstimate.at<Pose3>(cur_keys.at(i));
+                cout << cur_keys.at(i) << ": ";
+                cout << curEstimate.rotation().roll() << " " << curEstimate.rotation().pitch() << " " << curEstimate.rotation().yaw() << " ";
+                cout << curEstimate.translation().x() << " " << curEstimate.translation().y() << " " << curEstimate.translation().z() << endl;
+            }
+            cout << endl;
 
             
             // Add current keys to ROS message
@@ -2326,6 +2343,7 @@ public:
                 CF.infVec.push_back(curEstimate.translation().x());
                 CF.infVec.push_back(curEstimate.translation().y());
                 CF.infVec.push_back(curEstimate.translation().z());
+
             }
 
             // Add the number of means to ROS message
