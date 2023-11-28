@@ -37,6 +37,7 @@
 #include <gtsam/geometry/Pose2.h>
 // #include "GPSPose2Factor.h"
 #include <gtsam/linear/NoiseModel.h>
+#include <gtsam/nonlinear/LinearContainerFactor.h>
 
 
 
@@ -2546,8 +2547,11 @@ public:
         int rows = msgIn->matrixDim;
         int columns = msgIn->matrixDim;
 
-        Matrix covMatrix = reshapeMatrix(covMatflat, rows, columns);
-        Matrix meanVec = reshapeMatrix(meanVecflat, rows, 1);
+        // Matrix covMatrix = reshapeMatrix(covMatflat, rows, columns);
+        // Matrix meanVec = reshapeMatrix(meanVecflat, rows, 1);
+
+        Matrix infoMatrix = reshapeMatrix(covMatflat, rows, columns);
+        Matrix infoVec = reshapeMatrix(meanVecflat, rows, 1);
 
         
 
@@ -2572,38 +2576,38 @@ public:
             // ********************************************
             // std::cout << "Index: " << indexVec[i] << std::endl;
 
-            auto subset = extractSubset(meanVec, covMatrix, startRow, endRow, startCol, endCol);
+            // auto subset = extractSubset(meanVec, covMatrix, startRow, endRow, startCol, endCol);
+            
+            // Vector& margMean = subset.first;
+            // Matrix& margCov = subset.second;
 
-            Vector& margMean = subset.first;
-            Matrix& margCov = subset.second;
+            auto subset = extractSubset(infoVec, infoMatrix, startRow, endRow, startCol, endCol);
+
+            Vector& margInfoVec = subset.first;
+            Matrix& margInfoMat = subset.second;
+
+            
 
             std::cout << "\nEigen print:" << std::endl;
             
-            std::cout << "\nm =" << std::endl << margCov << std::endl;
+            // std::cout << "\nm =" << std::endl << margCov << std::endl;
 
-            std::cout << "\nv =" << std::endl << margMean << std::endl;
+            // std::cout << "\nv =" << std::endl << margMean << std::endl;
+
+            std::cout << "\nm =" << std::endl << margInfoMat << std::endl;
+
+            std::cout << "\nv =" << std::endl << margInfoVec << std::endl;
 
             
-            noiseModel::Gaussian::shared_ptr mainDiagBlock = noiseModel::Gaussian::Covariance(margCov);
+            // noiseModel::Gaussian::shared_ptr mainDiagBlock = noiseModel::Gaussian::Covariance(margCov);
+            
+            // gtSAMgraph.add(Point2UnaryFactor(indexVec[i], Point2(margMean(0), margMean(1)), mainDiagBlock));
+
             // noiseModel::Gaussian::shared_ptr mainDiagBlock = noiseModel::Gaussian::Information(margCov);
-            // noiseModel::Diagonal::shared_ptr mainDiagBlock = noiseModel::Diagonal::Variances((Vector(6) << 1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4).finished());
-
-            // float transformArray[nx]; // Assuming it should be a nx-element array
-
-            // // Extract the values from margMean and store them in transformArray
-            // for (int i = 0; i < nx; i++) {
-            //     transformArray[i] = margMean(i);
-            // }
-
-            // gtSAMgraph.add(PriorFactor<Vector>(indexVec[i] , margMean, mainDiagBlock));
-            // gtSAMgraph.add(PriorFactor<Pose3>(indexVec[i], trans2gtsamPose(transformArray), mainDiagBlock));
-            // gtSAMgraph.add(GPSFactor(indexVec[i] , margMean, mainDiagBlock));
-            // gtSAMgraph.add(GPSPose2Factor(indexVec[i], Point2(margMean(0), margMean(1)), mainDiagBlock));
-            // gtsam::Point2 measurement(1.0, 2.0);
-            // gtsam::SharedNoiseModel noiseModel = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector2(0.1, 0.1));
-            // gtsam::Key poseKey = gtsam::Symbol('x', 1);
-            // gtsam::NonlinearFactor::shared_ptr factor(new Point2UnaryFactor(poseKey, measurement, noiseModel ));
-            gtSAMgraph.add(Point2UnaryFactor(indexVec[i], Point2(margMean(0), margMean(1)), mainDiagBlock));
+            
+            gtSAMgraph.add(Point2UnaryFactorInformation(indexVec[i], margInfoMat, margInfoVec ));
+            
+            
 
             
 
@@ -2735,66 +2739,53 @@ public:
 
         if (H) *H = (gtsam::Matrix26() << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 
                                           0.0, 0.0, 0.0, 0.0, 1.0, 0.0).finished();
-        // Compute the Jacobian if requested
-        // if (H) *H << 0, 0, 0, 1, 0, 0,  // Partial derivatives with respect to quaternion X
-        //         0, 0, 0, 0, 1, 0;  // Partial derivatives with respect to quaternion Y
-        // if (H) {
-        //     // Compute the Jacobian with respect to pose if requested
-        //     H->resize(2, 6);
-        //     H->block<2, 3>(0, 0) = gtsam::Matrix2::Zero();      // No dependency on quaternion X, Y, Z
-        //     H->block<2, 2>(0, 3) = gtsam::Matrix2::Identity();  // Partial derivatives with respect to X, Y positions
-        //     H->block<2, 2>(0, 4) = gtsam::Matrix2::Zero();      // No dependency on Z position
-        // }
 
         return error;
     }
 };
 
-// class Point2UnaryFactorInformation : public gtsam::NoiseModelFactor1<gtsam::Pose3> {
-// private:
-//     // Measurement data (for example, the constraint in x and y)
-//     gtsam::Point2 measurement_;
+class Point2UnaryFactorInformation : public gtsam::NoiseModelFactor1<gtsam::Pose3> {
+private:
+    // Measurement data (for example, the constraint in x and y)
+    gtsam::Vector2 infoVec_;
+    gtsam::Matrix infoMat_;
 
-// public:
-//     Point2UnaryFactorInformation(gtsam::Key poseKey, const gtsam::Point2& measurement,
-//                   const gtsam::Matrix3& information)
-//         : gtsam::NoiseModelFactor1<gtsam::Pose3>(gtsam::noiseModel::Gaussian::Information::From(information), poseKey),
-//           measurement_(measurement),
-//           information_(information) {}
+public:
+    Point2UnaryFactorInformation(gtsam::Key poseKey, const gtsam::Matrix & infoMat,
+                  const gtsam::Vector& infoVec):
+        // : gtsam::NoiseModelFactor1<gtsam::Pose3>(gtsam::noiseModel::Gaussian::Information::From(information), poseKey),
+        //   gtsam::NoiseModelFactor1<gtsam::Pose3>(infoMat, poseKey), 
+          gtsam::NoiseModelFactor1<gtsam::Pose3>(gtsam::noiseModel::Gaussian::Information(infoMat), poseKey),
+          infoVec_(infoVec),
+          infoMat_(infoMat) {} 
+          
 
-//     // Error function
-//     gtsam::Vector evaluateError(const gtsam::Pose3& pose, boost::optional<gtsam::Matrix&> H = boost::none) const override {
-//         // Extract x and y components from Pose3
-//         gtsam::Vector2 error =  measurement_;
-//         // gtsam::Point2 pose_xy = pose.translation().head<2>();
+    // Error function
+    gtsam::Vector evaluateError(const gtsam::Pose3& pose, boost::optional<gtsam::Matrix&> H = boost::none) const override {
+        // Extract x and y components from Pose3
+        
+        gtsam::Vector2 pose_xy = pose.translation().head<2>();
 
-//         // Compute the error (residual)
-//         // gtsam::Vector2 error;
-//         // error[0] = pose_xy[0] - measurement_[0];
-//         // error[1] = pose_xy[1] - measurement_[1];
+        gtsam::Vector2 error;
 
-//         // error[0] = measurement_[0];
-//         // error[1] = measurement_[1];
+        gtsam::Vector e1_vec = 0.5*pose_xy.transpose() * infoMat_ * pose_xy-pose_xy.transpose() * infoVec_;  
+
+        double e1 = e1_vec.norm();
+        // double sqrt_e1 = std::sqrt(0.5 * e1);     
+        
+        error[0] = std::sqrt(0.5 * e1);
+        error[1] = std::sqrt(0.5 * e1);
+        
+
+        if (H)  *H = (gtsam::Matrix26() << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 
+                                          0.0, 0.0, 0.0, 0.0, 1.0, 0.0).finished();
+        
+
+        return error;
+    }
+};
 
 
-
-//         if (H)  H = (gtsam::Matrix26() << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 
-//                                           0.0, 0.0, 0.0, 0.0, 1.0, 0.0).finished();
-//                 *H *= gtsam::noiseModel::Gaussian:Information::To(information_); 
-        // Compute the Jacobian if requested
-        // if (H) *H << 0, 0, 0, 1, 0, 0,  // Partial derivatives with respect to quaternion X
-        //         0, 0, 0, 0, 1, 0;  // Partial derivatives with respect to quaternion Y
-        // if (H) {
-        //     // Compute the Jacobian with respect to pose if requested
-        //     H->resize(2, 6);
-        //     H->block<2, 3>(0, 0) = gtsam::Matrix2::Zero();      // No dependency on quaternion X, Y, Z
-        //     H->block<2, 2>(0, 3) = gtsam::Matrix2::Identity();  // Partial derivatives with respect to X, Y positions
-        //     H->block<2, 2>(0, 4) = gtsam::Matrix2::Zero();      // No dependency on Z position
-        // }
-
-        // return error;
-    // }
-// };
 
 // Usage
 // ...
