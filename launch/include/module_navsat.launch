@@ -5,16 +5,16 @@
     <env name="ROSCONSOLE_CONFIG_FILE" value="$(find lio_sam)/launch/include/rosconsole/rosconsole_error.conf"/>
     
     <!-- EKF GPS-->
-    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_gps" respawn="true">
-        <remap from="$(arg agent)/odometry/filtered" to="odometry/navsat" />
+    <node pkg="robot_localization" type="ekf_localization_node" name="$(arg agent)/ekf_gps" respawn="true">
+        <remap from="$(arg agent)/odometry/filtered" to="$(arg agent)/odometry/navsat" />
     </node>
 
     <!-- Navsat -->
-    <node pkg="robot_localization" type="navsat_transform_node" name="navsat" respawn="true">
+    <node pkg="robot_localization" type="navsat_transform_node" name="$(arg agent)/navsat" respawn="true">
         <!-- <rosparam param="datum">[42.35893211, -71.09345588, 0.0, world, base_link]</rosparam> -->
-        <remap from="$(arg agent)/imu/data" to="imu_correct" />
-        <remap from="$(arg agent)/gps/fix" to="gps/fix" />
-        <remap from="$(arg agent)/odometry/filtered" to="odometry/navsat" />
+        <remap from="$(arg agent)/imu/data" to="$(arg agent)/imu/data" />
+        <remap from="$(arg agent)/gps/fix" to="$(arg agent)/gps/fix" />
+        <remap from="$(arg agent)/odometry/filtered" to="$(arg agent)/odometry/navsat" />
     </node>
 
 </launch>

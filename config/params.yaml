@@ -7,7 +7,7 @@ lio_sam:
   # imuTopic: "imu_correct"                     # IMU data
   imuTopic: "$(arg agent)/imu/data"
   odomTopic: "$(arg agent)/odometry/imu"                   # IMU pre-preintegration odometry, same frequency as IMU
-  gpsTopic: "$(arg agent)/navsat/fix"                    # GPS odometry topic from navsat, see module_navsat.launch file
+  gpsTopic: "$(arg agent)/odometry/local_filtered"                    # GPS odometry topic from navsat, see module_navsat.launch file
   # gpsTopic: "odometry/filtered"
 
   # Frames
