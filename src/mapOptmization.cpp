@@ -1575,7 +1575,7 @@ public:
     {
         if (cloudKeyPoses3D->points.empty())
         {
-            noiseModel::Diagonal::shared_ptr priorNoise = noiseModel::Diagonal::Variances((Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8).finished()); // rad*rad, meter*meter
+            noiseModel::Diagonal::shared_ptr priorNoise = noiseModel::Diagonal::Variances((Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 5e1, 5e1, 5e1).finished()); // rad*rad, meter*meter
             gtSAMgraph.add(PriorFactor<Pose3>(0, trans2gtsamPose(transformTobeMapped), priorNoise));
             initialEstimate.insert(0, trans2gtsamPose(transformTobeMapped));
         }else{
@@ -2765,6 +2765,10 @@ public:
         // Extract x and y components from Pose3
         
         gtsam::Vector2 pose_xy = pose.translation().head<2>();
+
+        std::cout << "\nIn factor:" << std::endl;
+            
+        std::cout << "\nm =" << std::endl << pose_xy << std::endl;
 
         gtsam::Vector2 error;
 
