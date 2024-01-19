@@ -7,8 +7,9 @@ lio_sam:
   # imuTopic: "imu_correct"                     # IMU data
   imuTopic: "$(arg agent)/imu/data"
   odomTopic: "$(arg agent)/odometry/imu"                   # IMU pre-preintegration odometry, same frequency as IMU
-  gpsTopic: "$(arg agent)/odometry/local_filtered"                    # GPS odometry topic from navsat, see module_navsat.launch file
-  # gpsTopic: "odometry/filtered"
+  gpsTopic: "$(arg agent)/sim_gps"                    # GPS odometry topic from navsat, see module_navsat.launch file
+  # gpsTopic: "$(arg agent)/navsat/fix" 
+  # gpsTopic: "$(arg agent)/odometry/filtered"
 
   # Frames
   lidarFrame: "$(arg agent)/base_link"
@@ -100,7 +101,7 @@ lio_sam:
 
 
 # Navsat (convert GPS coordinates to Cartesian)
-navsat:
+$(arg agent)/navsat:
   frequency: 50
   wait_for_datum: false
   delay: 0.0
@@ -108,11 +109,11 @@ navsat:
   yaw_offset: 0
   zero_altitude: true
   broadcast_utm_transform: false
-  broadcast_utm_transform_as_parent_frame: false
+  # broadcast_utm_transform_as_parent_frame: false
   publish_filtered_gps: false
 
 # EKF for Navsat
-ekf_gps:
+$(arg agent)/ekf_gps:
   publish_tf: false
   map_frame: map
   odom_frame: odom
@@ -125,7 +126,7 @@ ekf_gps:
   # -------------------------------------
   # External IMU:
   # -------------------------------------
-  imu0: imu_correct
+  imu0: imu/data
   # make sure the input is aligned with ROS REP105. "imu_correct" is manually transformed by myself. EKF can also transform the data using tf between your imu and base_link
   imu0_config: [false, false, false,
                 true,  true,  true,
@@ -138,7 +139,7 @@ ekf_gps:
   # -------------------------------------
   # Odometry (From Navsat):
   # -------------------------------------
-  odom0: odometry/gps
+  odom0: odometry/imu
   odom0_config: [true,  true,  true,
                  false, false, false,
                  false, false, false,
