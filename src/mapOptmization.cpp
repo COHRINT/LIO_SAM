@@ -6,8 +6,7 @@
 #include <Eigen/Dense>
 
 #include "ros/ros.h"
-// #include "std_msgs/String.h"
-#include "std_msgs/Int64.h"
+#include "std_msgs/String.h"
 
 #include "utility.h"
 #include "lio_sam/cloud_info.h"
@@ -240,7 +239,7 @@ public:
         pubCF                 = nh.advertise<lio_sam::ChannelFilter>("SLAM_CF_chatter_"+ns, 1);
         subCFRequest          = nh.subscribe<lio_sam::SLAMRequest>("SLAM_chatter_"+ns, 1, &mapOptimization::SLAMRequestHandler, this, ros::TransportHints().tcpNoDelay());
 
-        subBoss               = nh.subscribe<std_msgs::Int64>("boss", 1, &mapOptimization::bossHandler, this, ros::TransportHints().tcpNoDelay());
+        subBoss               = nh.subscribe<std_msgs::String>("boss", 1, &mapOptimization::bossHandler, this, ros::TransportHints().tcpNoDelay());
 
         downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
         downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
@@ -299,7 +298,7 @@ public:
         key_idx = msgIn->timeSteps;
     }
 
-    void bossHandler(const std_msgs::Int64::ConstPtr& msgIn) {};
+    void bossHandler(const std_msgs::String::ConstPtr& msgIn) {};
 
     void laserCloudInfoHandler(const lio_sam::cloud_info::ConstPtr& msgIn)
     {
