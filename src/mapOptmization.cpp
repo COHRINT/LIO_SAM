@@ -501,12 +501,12 @@ public:
         // }
 
         // Display requested time steps
-        std::cout << "Requested time steps (in LIO SAM from tracking):\n";
+        // std::cout << "Requested time steps (in LIO SAM from tracking):\n";
         
-        for (int i = 0; i < key_idx.size(); i++) {
-            std::cout << key_idx.at(i) << " ";
-        }
-        std::cout << "\n\n";
+        // for (int i = 0; i < key_idx.size(); i++) {
+        //     std::cout << key_idx.at(i) << " ";
+        // }
+        // std::cout << "\n\n";
 
         // Extract latest estimate
         // Pose3 latestEstimate;   
@@ -514,19 +514,19 @@ public:
         // latestEstimate = isamCurrentEstimate.at<Pose3>(isamCurrentEstimate.size()-1);
         // std::cout << "check\n";
 
-        std::cout << "Factors requested by tracking algo..." << endl;
+        // std::cout << "Factors requested by tracking algo..." << endl;
 
         // Extract vector of keys and "reset" it to be empty
         KeyVector cur_keys = isamCurrentEstimate.keys();
-        cout << "****************************************************" << endl;
+        // cout << "****************************************************" << endl;
         int num_keys = cur_keys.size();
-        std::cout << num_keys << " ";
+        // std::cout << num_keys << " ";
         // Display alll LIO SAM time steps
-        std::cout << "LIO SAM time steps:\n";
-        for (int i = 0; i < num_keys; i++) {
-            std::cout << cur_keys.at(i) << " ";
-        }
-        std::cout << "\ncheck\n";
+        // std::cout << "LIO SAM time steps:\n";
+        // for (int i = 0; i < num_keys; i++) {
+        //     std::cout << cur_keys.at(i) << " ";
+        // }
+        // std::cout << "\ncheck\n";
 
         res.cur_key = cur_keys.at(num_keys-1);  // current LIO-SAM time step
         cur_keys.erase(cur_keys.begin(),cur_keys.end());
@@ -2605,7 +2605,7 @@ public:
 
             // noiseModel::Gaussian::shared_ptr mainDiagBlock = noiseModel::Gaussian::Information(margCov);
             
-            gtSAMgraph.add(Point2UnaryFactorInformation(indexVec[i], margInfoMat, margInfoVec ));
+            gtSAMgraph.add(Point2UnaryFactorInformation2(indexVec[i], margInfoMat, margInfoVec ));
             
             
 
@@ -2751,7 +2751,7 @@ private:
     gtsam::Matrix infoMat_;
 
 public:
-    Point2UnaryFactorInformation(gtsam::Key poseKey, const gtsam::Matrix & infoMat,
+    Point2UnaryFactorInformation(gtsam::Key poseKey, const gtsam::Matrix& infoMat,
                   const gtsam::Vector& infoVec):
         // : gtsam::NoiseModelFactor1<gtsam::Pose3>(gtsam::noiseModel::Gaussian::Information::From(information), poseKey),
         //   gtsam::NoiseModelFactor1<gtsam::Pose3>(infoMat, poseKey), 
@@ -2772,7 +2772,7 @@ public:
 
         gtsam::Vector2 error;
 
-        gtsam::Vector e1_vec = pose_xy.transpose() * infoMat_ * pose_xy-2*pose_xy.transpose() * infoVec_;  
+        gtsam::Vector e1_vec = pose_xy.transpose() * infoMat_ * pose_xy-2*pose_xy.transpose() * infoVec_+infoVec_.transpose()*infoMat_.inverse()*infoVec_;  
 
         double e1 = e1_vec.norm();
         // double sqrt_e1 = std::sqrt(0.5 * e1);     
@@ -2789,6 +2789,49 @@ public:
     }
 };
 
+
+class Point2UnaryFactorInformation2 : public gtsam::NoiseModelFactor1<gtsam::Pose3> {
+private:
+    // Measurement data (for example, the constraint in x and y)
+    gtsam::Vector2 infoVec_;
+    gtsam::Matrix infoMat_;
+
+public:
+    Point2UnaryFactorInformation2(gtsam::Key poseKey, const gtsam::Matrix& infoMat,
+                  const gtsam::Vector& infoVec):
+          gtsam::NoiseModelFactor1<gtsam::Pose3>(gtsam::noiseModel::Gaussian::Information(gtsam::Matrix1::Identity()), poseKey),
+          infoVec_(infoVec),
+          infoMat_(infoMat) {} 
+          
+
+    // Error function
+    gtsam::Vector evaluateError(const gtsam::Pose3& pose, boost::optional<gtsam::Matrix&> H = boost::none) const override {
+        // Extract x and y components from Pose3
+        
+        gtsam::Vector2 pose_xy = pose.translation().head<2>();
+
+        std::cout << "\nIn factor:" << std::endl;
+            
+        std::cout << "\nm =" << std::endl << pose_xy << std::endl;
+
+
+        gtsam::Vector1 error = pose_xy.transpose() * infoMat_ * pose_xy-2*pose_xy.transpose() * infoVec_+infoVec_.transpose()*infoMat_.inverse()*infoVec_;  
+        std::cout << "\nerror =" << std::endl << error << std::endl;
+        
+        gtsam::Vector2 Jac = (infoMat_ * pose_xy - infoVec_) ;
+
+
+        if (H) {
+            gtsam::Matrix H_1x6 = gtsam::Matrix::Zero(1, 6);
+            H_1x6(0,3) = Jac[0];
+            H_1x6(0,4) = Jac[1];
+            // H_1x6.block<1, 2>(0, 3) = (infoMat_ * pose_xy - infoVec_).transpose();
+            *H = H_1x6;
+        }                      
+        
+        return error;
+    }
+};
 
 
 // Usage
